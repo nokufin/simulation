@@ -3,15 +3,26 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Document</title>
+        <title>Creature Simulation</title>
         <link rel="stylesheet" href="./style.css" />
     </head>
     <body>
-        <div class="stage">
-            <pre id="creatureInfo"></pre>
+        <main class="app">
+            <header class="app__header">
+                <h1>Creature Simulation</h1>
+                <dl id="simInfo" class="sim-info"></dl>
+            </header>
 
-            <canvas id="myCanvas" width="600" height="400"></canvas>
-        </div>
+            <div class="stage">
+                <canvas id="myCanvas" width="960" height="600"></canvas>
+
+                <aside class="panel">
+                    <h2 class="panel__title">Creatures</h2>
+                    <pre id="creatureInfo" class="panel__body"></pre>
+                </aside>
+            </div>
+        </main>
+
+        <script src="./script.js"></script>
     </body>
-    <script src="./script.js"></script>
 </html>

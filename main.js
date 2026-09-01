@@ -1,7 +1,12 @@
 import { canvas, ctx } from "./canvas.js";
 import { Creature } from "./creature.js";
 import { Food } from "./food.js";
-import { renderCreatures, renderSimInfo, renderFoodInfo } from "./ui.js";
+import {
+    renderCreatures,
+    renderSimInfo,
+    renderFoodInfo,
+    initSpeedControl,
+} from "./ui.js";
 
 // fejlesztői réteg: rács + látótávolság + mozgásirány
 const DEBUG = true;
@@ -49,19 +54,26 @@ for (let i = 0; i < 16; i++) {
     foods.push(food);
 }
 
+// --- fix időlépés ---
+// a szimuláció mindig 60 lépést számol másodpercenként, függetlenül attól,
+// hány képkockát rajzol a böngésző (60 Hz, 144 Hz, háttérben lassuló tab...)
+const TICKS_PER_SECOND = 60;
+const MS_PER_TICK = 1000 / TICKS_PER_SECOND;
+const MAX_CATCHUP_MS = 250; // ennél nagyobb kihagyást nem próbál behozni
+const MAX_STEPS_PER_FRAME = 200; // vészfék, hogy egy frame ne akadjon be
+
 let tick = 0;
+let accumulator = 0;
+let lastTime = null;
+let speed = 1;
 
-function gameLoop() {
+initSpeedControl((value) => {
+    speed = value;
+});
+
+// egy szimulációs lépés: minden, ami a világ állapotát változtatja
+function step() {
     tick++;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (DEBUG) {
-        drawGrid();
-    }
-
-    for (const food of foods) {
-        food.draw();
-    }
 
     for (const creature of creatures) {
         creature.update(foods);
@@ -78,6 +90,19 @@ function gameLoop() {
     for (let i = 0; i < creatures.length; i++) {
         creatures[i].separate(creatures.slice(i + 1));
     }
+}
+
+// kirajzolás: csak olvassa a világ állapotát, nem módosítja
+function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (DEBUG) {
+        drawGrid();
+    }
+
+    for (const food of foods) {
+        food.draw();
+    }
 
     for (const creature of creatures) {
         if (DEBUG && creature.alive) {
@@ -89,8 +114,37 @@ function gameLoop() {
     renderCreatures(creatures);
     renderSimInfo(creatures, foods, tick);
     renderFoodInfo(foods);
-
-    requestAnimationFrame(gameLoop);
 }
 
-gameLoop();
+function frame(now) {
+    if (lastTime === null) {
+        lastTime = now;
+    }
+
+    let elapsed = now - lastTime;
+    lastTime = now;
+
+    if (elapsed > MAX_CATCHUP_MS) {
+        elapsed = MAX_CATCHUP_MS;
+    }
+
+    // a sebesség-szorzó nyújtja a beszámított időt (2× = kétszer annyi lépés)
+    accumulator += elapsed * speed;
+
+    let steps = 0;
+    while (accumulator >= MS_PER_TICK && steps < MAX_STEPS_PER_FRAME) {
+        step();
+        accumulator -= MS_PER_TICK;
+        steps++;
+    }
+
+    // ha a vészféket elértük, dobjuk el a maradékot (ne halmozódjon)
+    if (steps === MAX_STEPS_PER_FRAME) {
+        accumulator = 0;
+    }
+
+    render();
+    requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(frame);

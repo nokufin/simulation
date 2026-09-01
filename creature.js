@@ -70,7 +70,6 @@ export class Creature {
             ctx.strokeStyle = `hsl(${this.hue}, 70%, 28%)`;
             ctx.globalAlpha = 1;
         } else {
-            this.fadeAlpha = Math.max(this.fadeAlpha - 0.01, 0.5);
             ctx.fillStyle = "gray";
             ctx.strokeStyle = "rgb(60, 60, 60)";
             ctx.globalAlpha = this.fadeAlpha;
@@ -282,7 +281,11 @@ export class Creature {
     }
 
     update(foods) {
-        if (!this.alive) return;
+        if (!this.alive) {
+            // holttest lassú elhalványulása (tick-alapú, nem képkocka-alapú)
+            this.fadeAlpha = Math.max(this.fadeAlpha - 0.01, 0.5);
+            return;
+        }
 
         if (this.reproductionCooldown > 0) {
             this.reproductionCooldown--;

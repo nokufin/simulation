@@ -59,6 +59,39 @@ body {
     font-weight: 600;
 }
 
+.speed {
+    display: flex;
+    margin-right: auto;
+    border: 1px solid rgb(70, 68, 68);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.speed button {
+    padding: 3px 10px;
+    border: 0;
+    border-left: 1px solid rgb(70, 68, 68);
+    background-color: rgb(34, 33, 33);
+    color: rgb(180, 180, 180);
+    font: inherit;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+}
+
+.speed button:first-child {
+    border-left: 0;
+}
+
+.speed button:hover {
+    background-color: rgb(48, 46, 46);
+}
+
+.speed button.is-active {
+    background-color: rgb(90, 150, 220);
+    color: rgb(255, 255, 255);
+}
+
 .sim-info {
     display: flex;
     gap: 18px;

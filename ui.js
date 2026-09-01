@@ -1,6 +1,20 @@
 const crtInfo = document.getElementById("creatureInfo");
 const simInfo = document.getElementById("simInfo");
 const foodInfo = document.getElementById("foodInfo");
+const speedBar = document.getElementById("speed");
+
+// a gyorsítás gombok bekötése; onChange(újSebesség) hívódik kattintáskor
+export function initSpeedControl(onChange) {
+    speedBar.addEventListener("click", (event) => {
+        const button = event.target.closest("button");
+        if (!button) return;
+
+        for (const other of speedBar.children) {
+            other.classList.toggle("is-active", other === button);
+        }
+        onChange(Number(button.dataset.speed));
+    });
+}
 
 export function renderCreatures(creatures) {
     crtInfo.innerHTML = creatures

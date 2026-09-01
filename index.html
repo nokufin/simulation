@@ -14,15 +14,20 @@
             </header>
 
             <div class="stage">
-                <canvas id="myCanvas" width="960" height="600"></canvas>
+                <canvas id="myCanvas" width="1280" height="600"></canvas>
 
-                <aside class="panel">
-                    <h2 class="panel__title">Creatures</h2>
-                    <pre id="creatureInfo" class="panel__body"></pre>
+                <aside class="panel panel--narrow">
+                    <h2 class="panel__title">Food</h2>
+                    <div id="foodInfo" class="panel__body"></div>
                 </aside>
             </div>
+
+            <section class="creatures">
+                <h2 class="panel__title">Creatures</h2>
+                <div id="creatureInfo" class="creatures__row"></div>
+            </section>
         </main>
 
-        <script src="./script.js"></script>
+        <script type="module" src="./main.js"></script>
     </body>
 </html>

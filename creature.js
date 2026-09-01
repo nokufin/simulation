@@ -1,10 +1,6 @@
-const c = document.getElementById("myCanvas");
-const ctx = c.getContext("2d");
+import { canvas, ctx } from "./canvas.js";
 
-const crtInfo = document.getElementById("creatureInfo");
-const simInfo = document.getElementById("simInfo");
-
-class Creature {
+export class Creature {
     constructor(id, x, y) {
         this.id = id;
         this.x = x;
@@ -24,7 +20,7 @@ class Creature {
 
         // anyagcsere / életciklus
         this.age = 0;
-        this.maxAge = 6000;
+        this.maxAge = 10000;
         this.maxHealth = 100;
         this.health = this.maxHealth;
         this.maxEnergy = 150;
@@ -38,7 +34,7 @@ class Creature {
 
         // táplálkozás
         this.foodValue = 50;
-        this.eatingDuration = 60;
+        this.eatingDuration = 80;
         this.eatingTimer = 0;
         this.eatingFood = null;
 
@@ -49,9 +45,20 @@ class Creature {
 
         // viselkedés
         this.diet = "herbivore";
+        this.hue = 30;
         this.state = "moving";
         this.alive = true;
         this.fadeAlpha = 1;
+    }
+
+    randomizeTraits() {
+        const rand = (min, max) => min + Math.random() * (max - min);
+
+        // egyedi testfelépítés: nagyobb/kisebb, gyorsabb/lassabb, közel/távol látó
+        this.maxSpeed = rand(0.6, 1.6);
+        this.speed = this.maxSpeed;
+        this.size = rand(7, 14);
+        this.visionRange = rand(90, 210);
     }
 
     draw() {
@@ -59,8 +66,8 @@ class Creature {
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
 
         if (this.alive) {
-            ctx.fillStyle = "orange";
-            ctx.strokeStyle = "rgb(140, 70, 0)";
+            ctx.fillStyle = `hsl(${this.hue}, 70%, 55%)`;
+            ctx.strokeStyle = `hsl(${this.hue}, 70%, 28%)`;
             ctx.globalAlpha = 1;
         } else {
             this.fadeAlpha = Math.max(this.fadeAlpha - 0.01, 0.5);
@@ -73,6 +80,27 @@ class Creature {
         ctx.fill();
         ctx.stroke();
         ctx.globalAlpha = 1;
+    }
+
+    // fejlesztői réteg: látótávolság + mozgásirány
+    drawDebug() {
+        // látótávolság
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.visionRange, 0, Math.PI * 2);
+        ctx.strokeStyle = `hsl(${this.hue}, 70%, 55%)`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // mozgásirány
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(
+            this.x + this.directionX * this.size * 2,
+            this.y + this.directionY * this.size * 2,
+        );
+        ctx.strokeStyle = `hsl(${this.hue}, 70%, 70%)`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
     }
 
     move() {
@@ -122,8 +150,8 @@ class Creature {
         }
 
         // jobb
-        if (this.x + this.size > c.width) {
-            this.x = c.width - this.size;
+        if (this.x + this.size > canvas.width) {
+            this.x = canvas.width - this.size;
             this.directionX *= -1;
         }
 
@@ -134,16 +162,21 @@ class Creature {
         }
 
         // alsó
-        if (this.y + this.size > c.height) {
-            this.y = c.height - this.size;
+        if (this.y + this.size > canvas.height) {
+            this.y = canvas.height - this.size;
             this.directionY *= -1;
         }
     }
 
     eat() {
-        // az étel tápértéke az evés ideje alatt oszlik el
-        const gain = this.foodValue / this.eatingDuration;
-        this.energy = Math.min(this.energy + gain, this.maxEnergy);
+        if (!this.eatingFood) return;
+
+        // ennyit szeretne falni ebben a tick-ben...
+        const want = this.foodValue / this.eatingDuration;
+        // ...de csak annyit kap, amennyi az adott kajából épp jut
+        const got = this.eatingFood.bite(want);
+
+        this.energy = Math.min(this.energy + got, this.maxEnergy);
     }
 
     findNearestFood(foods) {
@@ -188,25 +221,36 @@ class Creature {
         }
     }
 
-    getInfo() {
-        const bar = (value, max) => {
-            const width = 10;
-            const filled = Math.round((Math.max(value, 0) / max) * width);
-            return "#".repeat(filled) + "-".repeat(width - filled);
-        };
+    getCardHTML() {
+        const color = `hsl(${this.hue}, 70%, 55%)`;
+        const pct = (value, max) =>
+            Math.max(0, Math.min(100, (value / max) * 100));
 
-        const lines = [
-            `#${this.id}  gen ${this.generation}  ${this.state}`,
-            `age  ${this.age} / ${this.maxAge}`,
-            `hp   ${bar(this.health, this.maxHealth)} ${Math.round(this.health)}`,
-            `en   ${bar(this.energy, this.maxEnergy)} ${Math.round(this.energy)}`,
-        ];
+        const meter = (label, value, max, mod) => `
+            <div class="ccard__stat-row">
+                <span>${label}</span>
+                <span>${Math.round(value)} / ${max}</span>
+            </div>
+            <div class="ccard__meter">
+                <span class="ccard__meter-fill ccard__meter-fill--${mod}" style="width:${pct(value, max)}%"></span>
+            </div>`;
 
-        if (!this.alive) {
-            lines[0] = `#${this.id}  gen ${this.generation}  dead`;
-        }
-
-        return lines.join("\n");
+        return `
+            <div class="ccard${this.alive ? "" : " ccard--dead"}" style="--c:${color}">
+                <div class="ccard__head">
+                    <span class="ccard__id">#${this.id}</span>
+                    <span class="ccard__gen">gen ${this.generation}</span>
+                    <span class="ccard__state">${this.alive ? this.state : "dead"}</span>
+                </div>
+                ${meter("hp", this.health, this.maxHealth, "hp")}
+                ${meter("en", this.energy, this.maxEnergy, "en")}
+                <div class="ccard__traits">
+                    <span>spd ${this.maxSpeed.toFixed(2)}</span>
+                    <span>sz ${this.size.toFixed(1)}</span>
+                    <span>vis ${Math.round(this.visionRange)}</span>
+                    <span>age ${this.age}</span>
+                </div>
+            </div>`;
     }
 
     separate(others) {
@@ -233,8 +277,8 @@ class Creature {
         }
 
         // ne tolódjon ki a pályáról
-        this.x = Math.min(Math.max(this.x, this.size), c.width - this.size);
-        this.y = Math.min(Math.max(this.y, this.size), c.height - this.size);
+        this.x = Math.min(Math.max(this.x, this.size), canvas.width - this.size);
+        this.y = Math.min(Math.max(this.y, this.size), canvas.height - this.size);
     }
 
     update(foods) {
@@ -248,10 +292,8 @@ class Creature {
             this.eat();
             this.eatingTimer--;
 
-            if (this.eatingTimer <= 0) {
-                if (this.eatingFood) {
-                    this.eatingFood.respawn();
-                }
+            const foodGone = !this.eatingFood || this.eatingFood.depleted;
+            if (this.eatingTimer <= 0 || foodGone) {
                 this.eatingFood = null;
                 this.state = "moving";
             }
@@ -266,92 +308,3 @@ class Creature {
         this.checkHealth();
     }
 }
-
-const creatures = [];
-for (let i = 0; i < 5; i++) {
-    const x = 20 + Math.random() * (c.width - 40);
-    const y = 20 + Math.random() * (c.height - 40);
-    creatures.push(new Creature(i + 1, x, y));
-}
-
-class Food {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        this.size = 6;
-    }
-
-    draw() {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fillStyle = "cyan";
-        ctx.strokeStyle = "rgb(0, 110, 120)";
-        ctx.lineWidth = 2;
-        ctx.fill();
-        ctx.stroke();
-    }
-
-    respawn() {
-        this.x = this.size + Math.random() * (c.width - this.size * 2);
-        this.y = this.size + Math.random() * (c.height - this.size * 2);
-    }
-}
-
-const foods = [];
-for (let i = 0; i < 16; i++) {
-    const food = new Food(0, 0);
-    food.respawn();
-    foods.push(food);
-}
-
-let tick = 0;
-
-function renderSimInfo() {
-    const alive = creatures.filter((creature) => creature.alive);
-    const generation = creatures.reduce(
-        (max, creature) => Math.max(max, creature.generation),
-        0,
-    );
-
-    const stats = {
-        tick: tick,
-        alive: `${alive.length} / ${creatures.length}`,
-        gen: generation,
-        food: foods.length,
-    };
-
-    simInfo.innerHTML = Object.entries(stats)
-        .map(([key, value]) => `<div><dt>${key}</dt><dd>${value}</dd></div>`)
-        .join("");
-}
-
-function gameLoop() {
-    tick++;
-    ctx.clearRect(0, 0, c.width, c.height);
-
-    for (const food of foods) {
-        food.draw();
-    }
-
-    for (const creature of creatures) {
-        creature.update(foods);
-    }
-
-    // egyik lény se lóghasson bele a másikba
-    for (let i = 0; i < creatures.length; i++) {
-        creatures[i].separate(creatures.slice(i + 1));
-    }
-
-    for (const creature of creatures) {
-        creature.draw();
-    }
-
-    crtInfo.textContent = creatures
-        .map((creature) => creature.getInfo())
-        .join("\n\n");
-    renderSimInfo();
-
-    requestAnimationFrame(gameLoop);
-}
-
-gameLoop();

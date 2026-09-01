@@ -4,12 +4,34 @@
     box-sizing: border-box;
 }
 
+:root {
+    --body-pad: 16px;
+    --gap: 14px;
+    --header-h: 30px;
+    --creatures-h: 202px;
+    --food-w: 210px;
+
+    /* a pálya magassága: ami függőlegesen marad, de vízszintesen se lógjon ki */
+    --canvas-h: min(
+        calc(
+            100vh - 2 * var(--body-pad) - var(--header-h) - 2 * var(--gap) -
+                var(--creatures-h)
+        ),
+        calc(
+            (100vw - 2 * var(--body-pad) - var(--gap) - var(--food-w)) * 600 /
+                1280
+        )
+    );
+    --canvas-w: calc(var(--canvas-h) * 1280 / 600);
+}
+
 body {
     display: flex;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 16px;
     background-color: rgb(38, 36, 36);
     color: rgb(235, 235, 235);
     font-family: "Segoe UI", system-ui, sans-serif;
@@ -18,11 +40,15 @@ body {
 .app {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--gap);
+    height: 100%;
+    min-height: 0;
+    width: calc(var(--canvas-w) + var(--gap) + var(--food-w));
 }
 
 .app__header {
     display: flex;
+    flex: none;
     align-items: baseline;
     justify-content: space-between;
     gap: 24px;
@@ -55,15 +81,16 @@ body {
 
 .stage {
     display: flex;
-    gap: 16px;
+    flex: none;
+    gap: var(--gap);
     align-items: flex-start;
 }
 
 #myCanvas {
     display: block;
     flex: none;
-    width: 960px;
-    height: 600px;
+    width: var(--canvas-w);
+    height: var(--canvas-h);
     background-color: rgb(0, 122, 0);
     border: 1px solid rgb(0, 0, 0);
     border-radius: 4px;
@@ -73,8 +100,12 @@ body {
     display: flex;
     flex-direction: column;
     flex: none;
-    width: 220px;
-    height: 600px;
+    width: var(--food-w);
+    height: var(--canvas-h);
+}
+
+.panel--narrow {
+    width: var(--food-w);
     background-color: rgb(28, 27, 27);
     border: 1px solid rgb(60, 58, 58);
     border-radius: 4px;
@@ -93,11 +124,157 @@ body {
 
 .panel__body {
     flex: 1;
+    min-height: 0;
     margin: 0;
-    padding: 12px;
-    overflow-y: auto;
-    font-family: "Consolas", "SF Mono", monospace;
+    padding: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.creatures {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    height: var(--creatures-h);
+    background-color: rgb(28, 27, 27);
+    border: 1px solid rgb(60, 58, 58);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.creatures__row {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    gap: 8px;
+    padding: 8px;
+}
+
+.ccard {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border-left: 4px solid var(--c, gray);
+    border-radius: 3px;
+    background-color: rgb(38, 37, 37);
     font-size: 12px;
-    line-height: 1.5;
-    white-space: pre-wrap;
+    overflow: hidden;
+}
+
+.ccard--dead {
+    opacity: 0.45;
+}
+
+.ccard__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.ccard__id {
+    font-weight: 700;
+    color: var(--c, #fff);
+}
+
+.ccard__gen {
+    color: rgb(150, 150, 150);
+}
+
+.ccard__state {
+    margin-left: auto;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background-color: rgb(60, 58, 58);
+    font-size: 11px;
+}
+
+.ccard__stat-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 3px;
+    font-variant-numeric: tabular-nums;
+    color: rgb(180, 180, 180);
+}
+
+.ccard__stat-row + .ccard__meter {
+    margin-bottom: 8px;
+}
+
+.ccard__stat-row span:first-child {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgb(140, 140, 140);
+}
+
+.ccard__meter {
+    height: 6px;
+    flex: none;
+    margin-bottom: 6px;
+    border-radius: 999px;
+    background-color: rgb(60, 58, 58);
+    overflow: hidden;
+}
+
+.ccard__meter-fill {
+    display: block;
+    height: 100%;
+    transition: width 0.2s linear;
+}
+
+.ccard__meter-fill--hp {
+    background-color: rgb(90, 200, 110);
+}
+
+.ccard__meter-fill--en {
+    background-color: rgb(230, 190, 70);
+}
+
+.ccard__meter-fill--food {
+    background-color: rgb(80, 200, 210);
+}
+
+.ccard__traits {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+    color: rgb(170, 170, 170);
+}
+
+.frow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.frow__id {
+    width: 24px;
+    color: rgb(140, 140, 140);
+}
+
+.frow__meter {
+    flex: 1;
+    height: 5px;
+    border-radius: 999px;
+    background-color: rgb(60, 58, 58);
+    overflow: hidden;
+}
+
+.frow__meter-fill {
+    display: block;
+    height: 100%;
+    background-color: rgb(80, 200, 210);
+    transition: width 0.2s linear;
+}
+
+.frow__num {
+    width: 44px;
+    text-align: right;
+    color: rgb(170, 170, 170);
 }

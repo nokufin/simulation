@@ -6,6 +6,7 @@ import {
     renderSimInfo,
     renderFoodInfo,
     initSpeedControl,
+    initSimControls,
 } from "./ui.js";
 
 // fejlesztői réteg: rács + látótávolság + mozgásirány
@@ -66,10 +67,49 @@ let tick = 0;
 let accumulator = 0;
 let lastTime = null;
 let speed = 1;
+let paused = false;
+let selectedId = null;
 
 initSpeedControl((value) => {
     speed = value;
 });
+
+initSimControls({
+    onTogglePause: () => {
+        paused = !paused;
+        return paused;
+    },
+    onStep: () => {
+        step();
+        render();
+    },
+});
+
+// kattintással kijelölhető egy lény (a canvas CSS-ben átméretezett, ezért a skálázás)
+canvas.addEventListener("click", (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
+    const y = ((event.clientY - rect.top) / rect.height) * canvas.height;
+
+    let hit = null;
+    for (const creature of creatures) {
+        const dx = creature.x - x;
+        const dy = creature.y - y;
+        if (Math.sqrt(dx * dx + dy * dy) <= creature.size + 4) {
+            hit = creature;
+        }
+    }
+    selectedId = hit ? hit.id : null;
+});
+
+// DevTools-ból piszkálható: sim.creatures[0].energy = 5, sim.selected, ...
+window.sim = {
+    creatures,
+    foods,
+    get selected() {
+        return creatures.find((creature) => creature.id === selectedId) ?? null;
+    },
+};
 
 // egy szimulációs lépés: minden, ami a világ állapotát változtatja
 function step() {
@@ -111,6 +151,16 @@ function render() {
         creature.draw();
     }
 
+    // kijelölt lény gyűrűje
+    const selected = creatures.find((creature) => creature.id === selectedId);
+    if (selected) {
+        ctx.beginPath();
+        ctx.arc(selected.x, selected.y, selected.size + 6, 0, Math.PI * 2);
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
     renderCreatures(creatures);
     renderSimInfo(creatures, foods, tick);
     renderFoodInfo(foods);
@@ -128,18 +178,23 @@ function frame(now) {
         elapsed = MAX_CATCHUP_MS;
     }
 
-    // a sebesség-szorzó nyújtja a beszámított időt (2× = kétszer annyi lépés)
-    accumulator += elapsed * speed;
+    if (!paused) {
+        // a sebesség-szorzó nyújtja a beszámított időt (2× = kétszer annyi lépés)
+        accumulator += elapsed * speed;
 
-    let steps = 0;
-    while (accumulator >= MS_PER_TICK && steps < MAX_STEPS_PER_FRAME) {
-        step();
-        accumulator -= MS_PER_TICK;
-        steps++;
-    }
+        let steps = 0;
+        while (accumulator >= MS_PER_TICK && steps < MAX_STEPS_PER_FRAME) {
+            step();
+            accumulator -= MS_PER_TICK;
+            steps++;
+        }
 
-    // ha a vészféket elértük, dobjuk el a maradékot (ne halmozódjon)
-    if (steps === MAX_STEPS_PER_FRAME) {
+        // ha a vészféket elértük, dobjuk el a maradékot (ne halmozódjon)
+        if (steps === MAX_STEPS_PER_FRAME) {
+            accumulator = 0;
+        }
+    } else {
+        // szünet alatt ne gyűljön az idő, hogy folytatáskor ne ugorjon
         accumulator = 0;
     }
 

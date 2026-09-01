@@ -11,13 +11,42 @@
             <header class="app__header">
                 <h1>Creature Simulation</h1>
 
-                <div class="speed" id="speed">
-                    <button type="button" data-speed="1" class="is-active">
-                        1&times;
-                    </button>
-                    <button type="button" data-speed="2">2&times;</button>
-                    <button type="button" data-speed="4">4&times;</button>
-                    <button type="button" data-speed="10">10&times;</button>
+                <div class="toolbar">
+                    <div class="btn-group" id="simControls">
+                        <button
+                            type="button"
+                            id="pauseBtn"
+                            aria-label="pause / play"
+                        >
+                            <svg
+                                class="icon icon--pause"
+                                viewBox="0 0 16 16"
+                                width="12"
+                                height="12"
+                            >
+                                <rect x="3" y="2" width="4" height="12" />
+                                <rect x="9" y="2" width="4" height="12" />
+                            </svg>
+                            <svg
+                                class="icon icon--play"
+                                viewBox="0 0 16 16"
+                                width="12"
+                                height="12"
+                            >
+                                <path d="M4 2 L13 8 L4 14 Z" />
+                            </svg>
+                        </button>
+                        <button type="button" id="stepBtn">step</button>
+                    </div>
+
+                    <div class="btn-group" id="speed">
+                        <button type="button" data-speed="1" class="is-active">
+                            1&times;
+                        </button>
+                        <button type="button" data-speed="2">2&times;</button>
+                        <button type="button" data-speed="4">4&times;</button>
+                        <button type="button" data-speed="10">10&times;</button>
+                    </div>
                 </div>
 
                 <dl id="simInfo" class="sim-info"></dl>

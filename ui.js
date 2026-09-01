@@ -2,6 +2,8 @@ const crtInfo = document.getElementById("creatureInfo");
 const simInfo = document.getElementById("simInfo");
 const foodInfo = document.getElementById("foodInfo");
 const speedBar = document.getElementById("speed");
+const pauseBtn = document.getElementById("pauseBtn");
+const stepBtn = document.getElementById("stepBtn");
 
 // a gyorsítás gombok bekötése; onChange(újSebesség) hívódik kattintáskor
 export function initSpeedControl(onChange) {
@@ -13,6 +15,23 @@ export function initSpeedControl(onChange) {
             other.classList.toggle("is-active", other === button);
         }
         onChange(Number(button.dataset.speed));
+    });
+}
+
+// pause / step gombok; onTogglePause() adja vissza az új (boolean) állapotot
+export function initSimControls({ onTogglePause, onStep }) {
+    pauseBtn.addEventListener("click", () => {
+        const paused = onTogglePause();
+        // szünetben a play ikon látszik + kék kiemelés
+        pauseBtn.classList.toggle("is-paused", paused);
+        pauseBtn.classList.toggle("is-active", paused);
+    });
+    stepBtn.addEventListener("click", () => {
+        onStep();
+
+        // rövid felvillanás, hogy egy gyors kattintás is látsszon
+        stepBtn.classList.add("flash");
+        setTimeout(() => stepBtn.classList.remove("flash"), 120);
     });
 }
 

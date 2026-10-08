@@ -57,6 +57,7 @@ export function snapshot(world) {
         history: world.history,
         creatures: world.creatures.map((c) => ({
             id: c.id,
+            speciesId: c.speciesId,
             generation: c.generation,
             parentId: c.parentId,
             birthTick: c.birthTick,

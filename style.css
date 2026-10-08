@@ -8,8 +8,9 @@
     --body-pad: 16px;
     --gap: 14px;
     --header-h: 30px;
-    --creatures-h: 202px;
+    --inspector-h: 250px;
     --food-w: 210px;
+    --explorer-w: 150px; /* bal oldali lénylista; összecsukva keskeny sáv */
 
     /* a pálya mérete (képarányhoz); a main.js felülírja a config.js értékeivel */
     --world-w: 1280;
@@ -19,14 +20,19 @@
     --canvas-h: min(
         calc(
             100vh - 2 * var(--body-pad) - var(--header-h) - 2 * var(--gap) -
-                var(--creatures-h)
+                var(--inspector-h)
         ),
         calc(
-            (100vw - 2 * var(--body-pad) - var(--gap) - var(--food-w)) *
+            (100vw - 2 * var(--body-pad) - 2 * var(--gap) - var(--food-w) - var(--explorer-w)) *
                 var(--world-h) / var(--world-w)
         )
     );
     --canvas-w: calc(var(--canvas-h) * var(--world-w) / var(--world-h));
+}
+
+/* a változót a :root-on kell felülírni, mert a --canvas-h is ott számolódik */
+:root.explorer-collapsed {
+    --explorer-w: 34px;
 }
 
 body {
@@ -47,7 +53,7 @@ body {
     gap: var(--gap);
     height: 100%;
     min-height: 0;
-    width: calc(var(--canvas-w) + var(--gap) + var(--food-w));
+    width: calc(var(--canvas-w) + 2 * var(--gap) + var(--food-w) + var(--explorer-w));
 }
 
 .app__header {
@@ -278,121 +284,6 @@ body {
     gap: 8px;
 }
 
-.creatures {
-    display: flex;
-    flex: none;
-    flex-direction: column;
-    height: var(--creatures-h);
-    background-color: rgb(28, 27, 27);
-    border: 1px solid rgb(60, 58, 58);
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-/* sok lénynél vízszintesen görgethető */
-.creatures__row {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-    gap: 8px;
-    padding: 8px;
-    overflow-x: auto;
-}
-
-.ccard {
-    flex: 1 0 180px;
-    min-width: 180px;
-    max-width: 260px;
-    padding: 10px 12px;
-    border-left: 4px solid var(--c, gray);
-    border-radius: 3px;
-    background-color: rgb(38, 37, 37);
-    font-size: 12px;
-    overflow: hidden;
-}
-
-.ccard--dead {
-    opacity: 0.45;
-}
-
-.ccard__head {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-}
-
-.ccard__id {
-    font-weight: 700;
-    color: var(--c, #fff);
-}
-
-.ccard__gen {
-    color: rgb(150, 150, 150);
-}
-
-.ccard__state {
-    margin-left: auto;
-    padding: 1px 6px;
-    border-radius: 999px;
-    background-color: rgb(60, 58, 58);
-    font-size: 11px;
-}
-
-.ccard__stat-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 3px;
-    font-variant-numeric: tabular-nums;
-    color: rgb(180, 180, 180);
-}
-
-.ccard__stat-row + .ccard__meter {
-    margin-bottom: 8px;
-}
-
-.ccard__stat-row span:first-child {
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: rgb(140, 140, 140);
-}
-
-.ccard__meter {
-    height: 6px;
-    flex: none;
-    margin-bottom: 6px;
-    border-radius: 999px;
-    background-color: rgb(60, 58, 58);
-    overflow: hidden;
-}
-
-.ccard__meter-fill {
-    display: block;
-    height: 100%;
-    transition: width 0.2s linear;
-}
-
-.ccard__meter-fill--hp {
-    background-color: rgb(90, 200, 110);
-}
-
-.ccard__meter-fill--en {
-    background-color: rgb(230, 190, 70);
-}
-
-.ccard__meter-fill--food {
-    background-color: rgb(80, 200, 210);
-}
-
-.ccard__traits {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 10px;
-    margin-top: 6px;
-    font-variant-numeric: tabular-nums;
-    color: rgb(170, 170, 170);
-}
-
 .frow {
     display: flex;
     align-items: center;
@@ -427,8 +318,664 @@ body {
     color: rgb(170, 170, 170);
 }
 
-.ccard__lineage {
-    margin: -4px 0 8px;
+/* --- megfigyelő panel: egyetlen panel a kijelölt lénynek --- */
+.inspector {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    height: var(--inspector-h);
+    background-color: rgb(28, 27, 27);
+    border: 1px solid rgb(60, 58, 58);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.inspector__head {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid rgb(60, 58, 58);
+}
+
+.inspector__head .panel__title {
+    flex: 1;
+    border-bottom: 0;
+}
+
+.inspector__close {
+    margin-right: 8px;
+    padding: 2px 8px;
+    font: inherit;
     font-size: 11px;
+    color: rgb(200, 200, 200);
+    background-color: rgb(48, 46, 46);
+    border: 1px solid rgb(70, 68, 68);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.inspector__close:hover {
+    background-color: rgb(60, 58, 58);
+}
+
+.inspector__close:focus-visible {
+    outline: 2px solid rgb(90, 150, 220);
+    outline-offset: 1px;
+}
+
+.inspector__body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 8px 12px;
+}
+
+.inspector__empty {
+    margin: 0;
+    padding: 24px 0;
+    text-align: center;
+    color: rgb(150, 150, 150);
+    font-size: 13px;
+}
+
+.inspector__notice {
+    margin: 0 0 6px;
+    font-size: 12px;
+    color: rgb(230, 190, 70);
+}
+
+.inspector__grid {
+    display: grid;
+    grid-template-columns: minmax(150px, 0.8fr) minmax(200px, 1.1fr) minmax(360px, 2fr) minmax(220px, 1.2fr);
+    gap: 18px;
+    padding-left: 10px;
+    border-left: 4px solid var(--c, gray);
+}
+
+.inspector__grid.is-dead {
+    border-left-color: rgb(110, 110, 110);
+}
+
+.isec {
+    min-width: 0;
+}
+
+.isec__title {
+    margin: 0 0 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgb(150, 150, 150);
+}
+
+.isec__rows {
+    margin: 0;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* a gének két hasábban */
+.isec--genes .isec__rows {
+    column-count: 2;
+    column-gap: 18px;
+}
+
+.isec__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 1px 0;
+    break-inside: avoid;
+}
+
+.isec__row dt {
+    color: rgb(150, 150, 150);
+    white-space: nowrap;
+}
+
+.isec__row dd {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    text-align: right;
+    font-weight: 600;
+    color: rgb(225, 225, 225);
+}
+
+.is-dead .isec__row[data-key="status"] dd,
+.is-dead .isec__row[data-key="cause"] dd {
+    color: rgb(235, 110, 100);
+}
+
+.meter {
+    display: inline-block;
+    flex: none;
+    width: 48px;
+    height: 5px;
+    border-radius: 999px;
+    background-color: rgb(60, 58, 58);
+    overflow: hidden;
+}
+
+.meter__fill {
+    display: block;
+    height: 100%;
+}
+
+.meter__fill--hp {
+    background-color: rgb(90, 200, 110);
+}
+
+.meter__fill--en {
+    background-color: rgb(230, 190, 70);
+}
+
+/* --- Creature Explorer: bal oldali, görgethető lénylista --- */
+.explorer {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    width: var(--explorer-w);
+    height: var(--canvas-h);
+    background-color: rgb(28, 27, 27);
+    border: 1px solid rgb(60, 58, 58);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.explorer__head {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid rgb(60, 58, 58);
+}
+
+.explorer__head .panel__title {
+    flex: 1;
+    min-width: 0;
+    border-bottom: 0;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.explorer__toggle {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    margin-right: 4px;
+    font: inherit;
+    font-size: 16px;
+    line-height: 1;
+    color: rgb(200, 200, 200);
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.explorer__toggle:hover {
+    background-color: rgb(48, 46, 46);
+}
+
+.explorer__content {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+    padding: 8px;
+}
+
+.explorer__search {
+    width: 100%;
+    padding: 4px 6px;
+    font: inherit;
+    font-size: 12px;
+    color: rgb(235, 235, 235);
+    background-color: rgb(38, 37, 37);
+    border: 1px solid rgb(70, 68, 68);
+    border-radius: 3px;
+}
+
+.explorer__count {
+    margin: 0;
+    font-size: 11px;
+    color: rgb(150, 150, 150);
+    font-variant-numeric: tabular-nums;
+}
+
+/* a lista görget, nem az oldal: a magasságát a panel szabja meg */
+.explorer__list {
+    flex: 1;
+    min-height: 0;
+    margin: 0;
+    padding: 2px;
+    list-style: none;
+    overflow-y: auto;
+    border-radius: 3px;
+}
+
+.explorer__toggle:focus-visible,
+.explorer__search:focus-visible,
+.explorer__list:focus-visible {
+    outline: 2px solid rgb(90, 150, 220);
+    outline-offset: 1px;
+}
+
+.exrow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 6px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.exrow:hover {
+    background-color: rgb(44, 42, 42);
+}
+
+/* kijelölt sor: kék háttér + bal oldali sáv, színvakoknak is egyértelmű */
+.exrow.is-selected {
+    background-color: rgb(42, 66, 96);
+    box-shadow: inset 3px 0 0 rgb(90, 150, 220);
+}
+
+.exrow__dot {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.exrow__id {
+    font-weight: 600;
+}
+
+.exrow__gen {
+    margin-left: auto;
     color: rgb(140, 140, 140);
+    font-size: 11px;
+}
+
+/* összecsukva csak a nyitó gomb látszik */
+.explorer-collapsed .explorer__content,
+.explorer-collapsed .explorer__head .panel__title {
+    display: none;
+}
+
+.explorer-collapsed .explorer__head {
+    justify-content: center;
+    border-bottom: 0;
+}
+
+.explorer-collapsed .explorer__toggle {
+    margin: 4px 0;
+}
+
+/* --- keskeny ablak / mobil: egymás alatti elrendezés, az oldal görget --- */
+@media (max-width: 900px) {
+    body {
+        display: block;
+        height: auto;
+        overflow: auto;
+        padding: 12px;
+    }
+
+    .app {
+        width: 100%;
+        height: auto;
+    }
+
+    .app__header {
+        flex-wrap: wrap;
+        gap: 8px 16px;
+    }
+
+    .sim-info {
+        flex-wrap: wrap;
+        gap: 4px 12px;
+    }
+
+    .stage {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    #myCanvas {
+        order: -1; /* a térkép legyen legfelül */
+        width: 100%;
+        height: auto;
+        aspect-ratio: var(--world-w) / var(--world-h);
+    }
+
+    .explorer,
+    .side {
+        width: 100%;
+        height: auto;
+    }
+
+    .explorer__list {
+        flex: none;
+        max-height: 180px;
+    }
+
+    .explorer-collapsed .explorer__head {
+        justify-content: space-between;
+    }
+
+    .explorer-collapsed .explorer__head .panel__title {
+        display: block;
+    }
+
+    .panel--narrow {
+        width: 100%;
+    }
+
+    .panel--food .panel__body {
+        max-height: 200px;
+    }
+
+    .inspector {
+        height: auto;
+    }
+
+    .inspector__grid {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+}
+
+/* --- fajcsoportok a lénylistában --- */
+.exgroup + .exgroup {
+    margin-top: 4px;
+}
+
+/* a fejléc görgetéskor a lista tetejére tapad, így mindig látszik, melyik fajnál tartunk */
+.exgroup__head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    height: 24px;
+    padding: 0 6px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgb(225, 225, 225);
+    text-align: left;
+    background-color: rgb(36, 35, 35);
+    border: 1px solid rgb(56, 54, 54);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.exgroup__head:hover {
+    background-color: rgb(46, 44, 44);
+}
+
+.exgroup__head:focus-visible {
+    outline: 2px solid rgb(90, 150, 220);
+    outline-offset: -2px;
+}
+
+.exgroup__chevron {
+    width: 10px;
+    color: rgb(150, 150, 150);
+    font-size: 10px;
+}
+
+.exgroup__name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.exgroup__count {
+    margin-left: auto;
+    font-weight: 400;
+    font-size: 11px;
+    color: rgb(150, 150, 150);
+    font-variant-numeric: tabular-nums;
+}
+
+.exgroup__rows {
+    margin: 2px 0 0;
+    padding: 0 0 0 8px;
+    list-style: none;
+}
+
+.exgroup.is-collapsed .exgroup__rows {
+    display: none;
+}
+
+/* a faj színe a megfigyelő panelen */
+.swatch {
+    display: inline-block;
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+/* a faj színe körvonalként (mint a térképen), a saját szín kitöltésként */
+.swatch--ring {
+    background: transparent;
+    border: 2px solid;
+}
+
+/* --- többes kijelölés: lista és panel --- */
+.inspector__hint {
+    margin: 0 8px 0 0;
+    font-size: 11px;
+    color: rgb(230, 190, 70);
+}
+
+.inspector__hint:empty {
+    display: none;
+}
+
+.inspector__empty-hint {
+    font-size: 11px;
+    color: rgb(120, 120, 120);
+}
+
+/* a fajcsoport fejlécén: kijelölt egyed van benne */
+.exgroup__sel {
+    padding: 0 5px;
+    font-size: 10px;
+    font-weight: 600;
+    color: rgb(190, 215, 245);
+    background-color: rgb(42, 66, 96);
+    border-radius: 999px;
+}
+
+/* összecsukva erősebben, hogy a rejtett kijelölés ne vesszen el */
+.exgroup.is-collapsed.has-selected .exgroup__head {
+    box-shadow: inset 3px 0 0 rgb(90, 150, 220);
+}
+
+.cmp {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cmp__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 2px 0 4px;
+    font-size: 12px;
+    background-color: rgb(38, 37, 37);
+    border: 1px solid rgb(70, 68, 68);
+    border-radius: 999px;
+}
+
+.chip.is-dead {
+    border-style: dashed;
+}
+
+.chip__num {
+    display: inline-grid;
+    place-items: center;
+    width: 15px;
+    height: 15px;
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+    background-color: rgb(20, 20, 20);
+    border-radius: 50%;
+}
+
+.chip__id {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.chip__species {
+    color: rgb(150, 150, 150);
+}
+
+.chip__dead {
+    font-size: 10px;
+    font-weight: 700;
+    color: rgb(235, 110, 100);
+}
+
+.chip__remove {
+    width: 18px;
+    height: 18px;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1;
+    color: rgb(190, 190, 190);
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.chip__remove:hover {
+    color: white;
+    background-color: rgb(70, 68, 68);
+}
+
+.chip__remove:focus-visible,
+.cmp__toggle:focus-visible {
+    outline: 2px solid rgb(90, 150, 220);
+    outline-offset: 1px;
+}
+
+.cmp__dot {
+    display: inline-block;
+    flex: none;
+    width: 9px;
+    height: 9px;
+    margin-right: 4px;
+    border-radius: 50%;
+    vertical-align: middle;
+}
+
+/* keskeny helyen a táblázat vízszintesen görget, nem az oldal */
+.cmp__scroll {
+    overflow-x: auto;
+}
+
+.cmp__table {
+    border-collapse: collapse;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.cmp__table th,
+.cmp__table td {
+    padding: 2px 10px;
+    text-align: left;
+    white-space: nowrap;
+    border-bottom: 1px solid rgb(44, 42, 42);
+}
+
+/* a tulajdonság oszlopa vízszintes görgetéskor a helyén marad */
+.cmp__table tbody th[scope="row"],
+.cmp__corner {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    font-weight: 400;
+    color: rgb(150, 150, 150);
+    background-color: rgb(28, 27, 27);
+}
+
+.cmp__col {
+    font-weight: 600;
+}
+
+.cmp__col .chip__num {
+    margin-right: 5px;
+}
+
+.cmp__col.is-dead,
+.cmp__table td.is-dead {
+    color: rgb(165, 160, 160);
+}
+
+.cmp__table td {
+    min-width: 110px;
+    color: rgb(225, 225, 225);
+}
+
+.cmp__table td .meter {
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+.cmp__table td .swatch {
+    margin-right: 5px;
+    vertical-align: middle;
+}
+
+.cmp__section-head th {
+    padding-top: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgb(150, 150, 150);
+    border-bottom: 1px solid rgb(60, 58, 58);
+}
+
+.cmp__toggle {
+    padding: 0;
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+}
+
+/* eltérő értékek: semleges kiemelés (nem jó / rossz minősítés) */
+.cmp__row.is-different th[scope="row"] {
+    color: rgb(225, 225, 225);
+    box-shadow: inset 2px 0 0 rgb(120, 118, 118);
+}
+
+.cmp__legend {
+    margin: 0;
+    font-size: 11px;
+    color: rgb(120, 120, 120);
 }

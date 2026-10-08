@@ -23,22 +23,42 @@ function mutationOf(world) {
     };
 }
 
-function canReproduceAlone(creature, world) {
+// mi akadályozza most az egyedül (ivartalanul) szaporodást; üres lista = szaporodhat.
+// Ugyanezt használja a döntés és a megfigyelő panel, így a kettő nem térhet el.
+function soloBlockers(creature, world) {
     const { genes } = creature;
     const cost = birthCost(genes, world.settings.reproductionEfficiency);
+    const threshold = genes.maxEnergy * genes.reproductionThreshold;
+    const blockers = [];
 
-    return (
-        creature.alive &&
-        creature.age >= genes.maturityAge &&
-        creature.reproductionTimer === 0 &&
-        creature.energy >= genes.maxEnergy * genes.reproductionThreshold &&
-        creature.energy > cost // a költség után is maradjon energiája
-    );
+    if (!creature.alive) {
+        blockers.push({ code: "dead" });
+        return blockers;
+    }
+    if (creature.age < genes.maturityAge) {
+        blockers.push({ code: "immature", ticks: genes.maturityAge - creature.age });
+    }
+    if (creature.reproductionTimer > 0) {
+        blockers.push({ code: "cooldown", ticks: creature.reproductionTimer });
+    }
+    if (creature.energy < threshold) {
+        blockers.push({ code: "energy", needed: threshold - creature.energy });
+    } else if (creature.energy <= cost) {
+        // a költség után is maradjon energiája
+        blockers.push({ code: "energy", needed: cost - creature.energy });
+    }
+    return blockers;
+}
+
+function canReproduceAlone(creature, world) {
+    return soloBlockers(creature, world).length === 0;
 }
 
 export const STRATEGIES = {
     // ivartalan: egy szülő, az utód a szülő mutált génjeit kapja
     asexual: {
+        blockers: soloBlockers,
+
         request(creature, world) {
             return canReproduceAlone(creature, world)
                 ? { strategy: "asexual", parents: [creature] }
@@ -60,6 +80,33 @@ export const STRATEGIES = {
         },
     },
 };
+
+// a lény szaporodási helyzete a megfigyelő számára (csak olvas, semmit nem módosít):
+// a stratégia saját akadályai + a világ populációs korlátja
+export function reproductionStatus(creature, world) {
+    const { genes } = creature;
+    const blockers = getStrategy(genes.reproductionStrategy).blockers(creature, world);
+
+    if (creature.alive && world.aliveCount >= world.settings.maxPopulation) {
+        blockers.push({ code: "population", limit: world.settings.maxPopulation });
+    }
+
+    const waitTicks = Math.max(
+        0,
+        ...blockers.filter((b) => b.ticks !== undefined).map((b) => b.ticks),
+    );
+
+    return {
+        mature: creature.age >= genes.maturityAge,
+        canReproduce: blockers.length === 0,
+        blockers,
+        // legalább ennyi tick, mire újra szaporodhat (az energia ezen felül számít)
+        waitTicks,
+        cost: birthCost(genes, world.settings.reproductionEfficiency),
+        offspringEnergy: genes.offspringEnergy,
+        energyThreshold: genes.maxEnergy * genes.reproductionThreshold,
+    };
+}
 
 export function getStrategy(name) {
     const strategy = STRATEGIES[name];

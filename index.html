@@ -53,6 +53,45 @@
             </header>
 
             <div class="stage">
+                <!-- Creature Explorer: az élőlények kompakt, görgethető listája -->
+                <aside class="explorer" id="explorer">
+                    <div class="explorer__head">
+                        <h2 class="panel__title">Lények</h2>
+                        <button
+                            type="button"
+                            id="explorerToggle"
+                            class="explorer__toggle"
+                            aria-expanded="true"
+                            aria-controls="explorerContent"
+                            aria-label="Lénylista összecsukása"
+                            title="Lénylista összecsukása"
+                        >
+                            <span aria-hidden="true">‹</span>
+                        </button>
+                    </div>
+                    <div class="explorer__content" id="explorerContent">
+                        <input
+                            type="search"
+                            id="explorerSearch"
+                            class="explorer__search"
+                            placeholder="Keresés: #42"
+                            aria-label="Lény keresése azonosító alapján"
+                            inputmode="numeric"
+                            autocomplete="off"
+                        />
+                        <p class="explorer__count" id="explorerCount" aria-live="polite"></p>
+                        <!-- fajcsoportok: fejléc (nyit / csuk) + az élő egyedek sorai -->
+                        <div
+                            class="explorer__list"
+                            id="explorerList"
+                            role="listbox"
+                            tabindex="0"
+                            aria-multiselectable="true"
+                            aria-label="Élőlények fajonként (nyilakkal léptethető, Ctrl + kattintás: többes kijelölés)"
+                        ></div>
+                    </div>
+                </aside>
+
                 <!-- a felbontást a main.js állítja be a config.js alapján -->
                 <canvas id="myCanvas"></canvas>
 
@@ -76,9 +115,17 @@
                 </aside>
             </div>
 
-            <section class="creatures">
-                <h2 class="panel__title">Creatures</h2>
-                <div id="creatureInfo" class="creatures__row"></div>
+            <!-- egyetlen panel a kijelölt lénynek (nem kártya minden lényhez) -->
+            <section class="inspector" id="inspector">
+                <div class="inspector__head">
+                    <h2 class="panel__title" id="inspectorTitle">Kijelölt lény</h2>
+                    <!-- visszafogott tájékoztatás, pl. ha elérted a kijelölési korlátot -->
+                    <p class="inspector__hint" id="selectionNotice" role="status" aria-live="polite"></p>
+                    <button type="button" id="deselectBtn" class="inspector__close" hidden>
+                        kijelölés megszüntetése (Esc)
+                    </button>
+                </div>
+                <div id="inspectorBody" class="inspector__body"></div>
             </section>
         </main>
 

@@ -1,8 +1,20 @@
 // Kirajzolás: csak olvassa a világ állapotát, sosem módosítja.
 
+import { getSpecies } from "./species.js";
+
 const GRID_SIZE = 100;
 
-export function drawWorld(ctx, world, { debug = false, selectedId = null } = {}) {
+// a faj körvonala: a test szélétől ennyire kívül, ilyen vastagon (a test sötét éle választja el)
+const SPECIES_RING_GAP = 2;
+const SPECIES_RING_WIDTH = 1.5;
+// a kijelölőgyűrű sugara a test szélétől: kívül esik a faj körvonalán, köztük hézag marad
+const SELECTION_RING_GAP = 8;
+
+// selected: a kijelölt lények (kiválasztási sorrendben; null = nem rajzolandó, de a
+// sorszámát megtartja), egyetlen lény vagy null;
+// a gyűrűk a pillanatnyi helyüket követik. Több kijelöltnél a gyűrű mellett a sorszám is
+// látszik, ugyanaz, mint az összehasonlító táblázat oszlopáé.
+export function drawWorld(ctx, world, { debug = false, selected = null } = {}) {
     ctx.clearRect(0, 0, world.width, world.height);
 
     if (debug) {
@@ -20,15 +32,50 @@ export function drawWorld(ctx, world, { debug = false, selectedId = null } = {})
         drawCreature(ctx, creature);
     }
 
-    // kijelölt lény gyűrűje
-    const selected = world.creatures.find((creature) => creature.id === selectedId);
-    if (selected) {
-        ctx.beginPath();
-        ctx.arc(selected.x, selected.y, selected.genes.size + 6, 0, Math.PI * 2);
-        ctx.strokeStyle = "white";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    }
+    const list = Array.isArray(selected) ? selected : selected ? [selected] : [];
+    list.forEach((creature, index) => {
+        if (!creature) return;
+        drawSelectionRing(ctx, creature);
+        if (list.length > 1) drawSelectionNumber(ctx, creature, index + 1);
+    });
+}
+
+// kis sorszám a gyűrű jobb felső részén, sötét alapon, hogy bármilyen háttéren olvasható legyen
+function drawSelectionNumber(ctx, creature, number) {
+    const offset = (creature.genes.size + SELECTION_RING_GAP) * Math.SQRT1_2;
+    const x = creature.x + offset + 4;
+    const y = creature.y - offset - 4;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, 8, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+    ctx.fill();
+    ctx.fillStyle = "white";
+    ctx.font = "bold 11px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(number), x, y + 0.5);
+    ctx.restore();
+}
+
+// sötét + fehér kettős gyűrű, hogy bármilyen háttéren látsszon; halott lénynél szaggatott
+function drawSelectionRing(ctx, creature) {
+    const r = creature.genes.size + SELECTION_RING_GAP;
+
+    ctx.save();
+    if (!creature.alive) ctx.setLineDash([5, 4]);
+
+    ctx.beginPath();
+    ctx.arc(creature.x, creature.y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.lineWidth = 5;
+    ctx.stroke();
+
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
 }
 
 function drawGrid(ctx, world) {
@@ -59,24 +106,35 @@ function drawFood(ctx, food) {
     ctx.stroke();
 }
 
+// a test a lény saját (mutálódó) színével, körülötte vékony körvonal a faja eredeti színével
 function drawCreature(ctx, creature) {
     const { size, hue } = creature.genes;
+    const species = getSpecies(creature.speciesId);
+
+    if (!creature.alive) ctx.globalAlpha = creature.fadeAlpha;
 
     ctx.beginPath();
     ctx.arc(creature.x, creature.y, size, 0, Math.PI * 2);
-
     if (creature.alive) {
         ctx.fillStyle = `hsl(${hue}, 70%, 55%)`;
         ctx.strokeStyle = `hsl(${hue}, 70%, 28%)`;
     } else {
         ctx.fillStyle = "gray";
         ctx.strokeStyle = "rgb(60, 60, 60)";
-        ctx.globalAlpha = creature.fadeAlpha;
     }
-
     ctx.lineWidth = 2;
     ctx.fill();
     ctx.stroke();
+
+    // faj nélküli lénynek nincs körvonala
+    if (species.hue !== null) {
+        ctx.beginPath();
+        ctx.arc(creature.x, creature.y, size + SPECIES_RING_GAP, 0, Math.PI * 2);
+        ctx.strokeStyle = `hsl(${species.hue}, 75%, 60%)`;
+        ctx.lineWidth = SPECIES_RING_WIDTH;
+        ctx.stroke();
+    }
+
     ctx.globalAlpha = 1;
 }
 

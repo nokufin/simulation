@@ -27,6 +27,7 @@ export class Creature {
         this.genes = genes;
 
         // származás
+        this.speciesId = null; // a species.js egyik faja; az utód a szülőtől örökli
         this.generation = 0;
         this.parentId = null;
         this.birthTick = 0;

@@ -51,10 +51,11 @@ export class World {
         };
     }
 
-    spawnCreature(genes) {
+    spawnCreature(genes, speciesId = null) {
         const { x, y } = this.randomPoint(genes.size);
         const heading = this.rng.angle();
         const creature = new Creature(this.nextCreatureId++, x, y, genes, heading);
+        creature.speciesId = speciesId;
         this.creatures.push(creature);
         return creature;
     }
@@ -153,6 +154,7 @@ export class World {
         child.energy = Math.min(energy, genes.maxEnergy);
         child.generation = Math.max(...parents.map((p) => p.generation)) + 1;
         child.parentId = parent.id;
+        child.speciesId = parent.speciesId; // a faj öröklődik, nem mutálódik
         child.birthTick = this.tick;
 
         for (const p of parents) p.childrenCount++;

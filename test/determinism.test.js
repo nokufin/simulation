@@ -47,7 +47,7 @@ test("a kirajzolás nem befolyásolja a szimulációt", () => {
 
     for (let t = 0; t < 3000; t++) {
         drawn.step();
-        drawWorld(fakeCtx, drawn, { debug: true, selectedId: 1 });
+        drawWorld(fakeCtx, drawn, { debug: true, selected: drawn.creatures[0] });
         plain.step();
     }
 

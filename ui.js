@@ -554,12 +554,15 @@ function renderComparison(desc) {
                 const html = cellHTML(cell);
                 if (view.html !== html) {
                     view.el.innerHTML = html;
+                    view.el.title = cell.value; // a levágott (…) érték teljes szövege
                     view.html = html;
                 }
             }
         }
     }
 }
+
+const escapeAttr = (text) => String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
 function comparisonHTML(columns, sections) {
     const chips = columns
@@ -597,7 +600,7 @@ function comparisonHTML(columns, sections) {
                       .map(
                           (row) =>
                               `<tr class="cmp__row${row.differs ? " is-different" : ""}" data-row><th scope="row">${row.label}</th>${row.cells
-                                  .map((cell, i) => `<td data-cell class="${columns[i].dead ? "is-dead" : ""}">${cellHTML(cell)}</td>`)
+                                  .map((cell, i) => `<td data-cell class="${columns[i].dead ? "is-dead" : ""}" title="${escapeAttr(cell.value)}">${cellHTML(cell)}</td>`)
                                   .join("")}</tr>`,
                       )
                       .join("")
@@ -611,7 +614,9 @@ function comparisonHTML(columns, sections) {
             <div class="cmp__chips">${chips}</div>
             ${removedNotice}
             <div class="cmp__scroll">
-                <table class="cmp__table">
+                <!-- fix elrendezés: a lények oszlopai egyenlő szélességűek, nem a szöveg hosszától függnek -->
+                <table class="cmp__table" style="--cols: ${columns.length}">
+                    <colgroup><col class="cmp__labelcol" />${columns.map(() => "<col />").join("")}</colgroup>
                     <thead>${head}</thead>
                     ${bodies}
                 </table>

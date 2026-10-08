@@ -894,7 +894,13 @@ body {
     overflow-x: auto;
 }
 
+/* fix elrendezés: a tulajdonság-oszlop állandó, a lények oszlopai egyenlő arányban osztoznak
+   a maradékon (2 lénynél kétfelé, 5-nél ötfelé), így a szövegek hossza nem tologatja őket.
+   Keskeny helyen a min-width miatt a táblázat vízszintesen görget. */
 .cmp__table {
+    width: 100%;
+    min-width: calc(180px + var(--cols, 2) * 130px);
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 12px;
     font-variant-numeric: tabular-nums;
@@ -932,8 +938,18 @@ body {
     color: rgb(165, 160, 160);
 }
 
+.cmp__labelcol {
+    width: 180px;
+}
+
+/* a túl hosszú érték levágva (…), a teljes szöveg a buboréksúgóban */
+.cmp__table td,
+.cmp__col {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .cmp__table td {
-    min-width: 110px;
     color: rgb(225, 225, 225);
 }
 

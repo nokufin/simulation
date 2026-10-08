@@ -1,69 +1,42 @@
+// Belépési pont: világ létrehozása, fix időlépéses fő ciklus, felhasználói vezérlés.
+
 import { canvas, ctx } from "./canvas.js";
-import { Creature } from "./creature.js";
-import { Food } from "./food.js";
+import { WORLD_CONFIG } from "./config.js";
+import { createDefaultWorld } from "./scenario.js";
+import { randomSeed } from "./rng.js";
+import { drawWorld } from "./render.js";
 import {
     renderCreatures,
     renderSimInfo,
     renderFoodInfo,
+    renderPopulation,
     initSpeedControl,
     initSimControls,
 } from "./ui.js";
 
-// fejlesztői réteg: rács + látótávolság + mozgásirány
+// fejlesztői réteg: rács + látókúp + mozgásirány + célpont
 const DEBUG = true;
-const GRID_SIZE = 100;
 
-function drawGrid() {
-    ctx.beginPath();
-    for (let x = GRID_SIZE; x < canvas.width; x += GRID_SIZE) {
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-    }
-    for (let y = GRID_SIZE; y < canvas.height; y += GRID_SIZE) {
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
-    }
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.07)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-}
+// seed: ?seed=12345 az URL-ben visszajátssza ugyanazt a futást, enélkül véletlen
+const seedParam = new URLSearchParams(location.search).get("seed");
+const seed = seedParam !== null && /^\d+$/.test(seedParam) ? Number(seedParam) : randomSeed();
+console.log(`seed: ${seed}  (újrajátszás: ?seed=${seed})`);
 
-// fix szín minden casthoz (spawn-sorrend szerint, HSL hue)
-const CAST_HUES = [
-    0, // #1 - piros
-    40, // #2 - narancs
-    130, // #3 - zöld
-    205, // #4 - kék
-    280, // #5 - lila
-];
+const world = createDefaultWorld(seed);
 
-const creatures = [];
-for (let i = 0; i < 5; i++) {
-    const x = 20 + Math.random() * (canvas.width - 40);
-    const y = 20 + Math.random() * (canvas.height - 40);
-
-    const creature = new Creature(i + 1, x, y);
-    creature.randomizeTraits();
-    creature.hue = CAST_HUES[i % CAST_HUES.length];
-    creatures.push(creature);
-}
-
-const foods = [];
-for (let i = 0; i < 16; i++) {
-    const food = new Food(i + 1, 0, 0);
-    food.respawn();
-    foods.push(food);
-}
+// a canvas felbontása és a CSS-beli képarány a configból jön
+canvas.width = WORLD_CONFIG.width;
+canvas.height = WORLD_CONFIG.height;
+document.documentElement.style.setProperty("--world-w", WORLD_CONFIG.width);
+document.documentElement.style.setProperty("--world-h", WORLD_CONFIG.height);
 
 // --- fix időlépés ---
-// a szimuláció mindig 60 lépést számol másodpercenként, függetlenül attól,
+// a szimuláció mindig ticksPerSecond lépést számol másodpercenként, függetlenül attól,
 // hány képkockát rajzol a böngésző (60 Hz, 144 Hz, háttérben lassuló tab...)
-const TICKS_PER_SECOND = 60;
-const MS_PER_TICK = 1000 / TICKS_PER_SECOND;
+const MS_PER_TICK = 1000 / WORLD_CONFIG.ticksPerSecond;
 const MAX_CATCHUP_MS = 250; // ennél nagyobb kihagyást nem próbál behozni
 const MAX_STEPS_PER_FRAME = 200; // vészfék, hogy egy frame ne akadjon be
 
-let tick = 0;
 let accumulator = 0;
 let lastTime = null;
 let speed = 1;
@@ -80,8 +53,8 @@ initSimControls({
         return paused;
     },
     onStep: () => {
-        step();
-        render();
+        world.step();
+        render(true); // léptetéskor a panelek is azonnal frissüljenek
     },
 });
 
@@ -91,79 +64,35 @@ canvas.addEventListener("click", (event) => {
     const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
     const y = ((event.clientY - rect.top) / rect.height) * canvas.height;
 
-    let hit = null;
-    for (const creature of creatures) {
-        const dx = creature.x - x;
-        const dy = creature.y - y;
-        if (Math.sqrt(dx * dx + dy * dy) <= creature.size + 4) {
-            hit = creature;
-        }
-    }
+    const hit = world.creatures.findLast(
+        (creature) => creature.distanceTo({ x, y }) <= creature.genes.size + 4,
+    );
     selectedId = hit ? hit.id : null;
 });
 
-// DevTools-ból piszkálható: sim.creatures[0].energy = 5, sim.selected, ...
+// DevTools-ból piszkálható: sim.world.creatures[0].energy = 5, sim.selected, ...
 window.sim = {
-    creatures,
-    foods,
+    world,
     get selected() {
-        return creatures.find((creature) => creature.id === selectedId) ?? null;
+        return world.creatures.find((creature) => creature.id === selectedId) ?? null;
     },
 };
 
-// egy szimulációs lépés: minden, ami a világ állapotát változtatja
-function step() {
-    tick++;
+// a panelek HTML-je drága (sok lénynél sok kártya), ezért ritkábban frissül, mint a canvas
+const PANEL_INTERVAL_MS = 125;
+let lastPanelUpdate = -Infinity;
 
-    for (const creature of creatures) {
-        creature.update(foods);
+function render(forcePanels = false) {
+    drawWorld(ctx, world, { debug: DEBUG, selectedId });
+
+    const now = performance.now();
+    if (forcePanels || now - lastPanelUpdate >= PANEL_INTERVAL_MS) {
+        lastPanelUpdate = now;
+        renderCreatures(world.creatures);
+        renderSimInfo(world);
+        renderPopulation(world);
+        renderFoodInfo(world.foods);
     }
-
-    // a lerágott kaja új helyen, tele bukkan fel újra
-    for (const food of foods) {
-        if (food.depleted) {
-            food.respawn();
-        }
-    }
-
-    // egyik lény se lóghasson bele a másikba
-    for (let i = 0; i < creatures.length; i++) {
-        creatures[i].separate(creatures.slice(i + 1));
-    }
-}
-
-// kirajzolás: csak olvassa a világ állapotát, nem módosítja
-function render() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (DEBUG) {
-        drawGrid();
-    }
-
-    for (const food of foods) {
-        food.draw();
-    }
-
-    for (const creature of creatures) {
-        if (DEBUG && creature.alive) {
-            creature.drawDebug();
-        }
-        creature.draw();
-    }
-
-    // kijelölt lény gyűrűje
-    const selected = creatures.find((creature) => creature.id === selectedId);
-    if (selected) {
-        ctx.beginPath();
-        ctx.arc(selected.x, selected.y, selected.size + 6, 0, Math.PI * 2);
-        ctx.strokeStyle = "white";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    }
-
-    renderCreatures(creatures);
-    renderSimInfo(creatures, foods, tick);
-    renderFoodInfo(foods);
 }
 
 function frame(now) {
@@ -184,7 +113,7 @@ function frame(now) {
 
         let steps = 0;
         while (accumulator >= MS_PER_TICK && steps < MAX_STEPS_PER_FRAME) {
-            step();
+            world.step();
             accumulator -= MS_PER_TICK;
             steps++;
         }

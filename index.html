@@ -53,11 +53,26 @@
             </header>
 
             <div class="stage">
-                <canvas id="myCanvas" width="1280" height="600"></canvas>
+                <!-- a felbontást a main.js állítja be a config.js alapján -->
+                <canvas id="myCanvas"></canvas>
 
-                <aside class="panel panel--narrow">
-                    <h2 class="panel__title">Food</h2>
-                    <div id="foodInfo" class="panel__body"></div>
+                <aside class="side">
+                    <section class="panel--narrow panel--population">
+                        <h2 class="panel__title">Population</h2>
+                        <div class="pop">
+                            <canvas id="popChart" class="pop__chart" width="380" height="140"></canvas>
+                            <div class="pop__legend">
+                                <span class="pop__key pop__key--alive">alive</span>
+                                <span class="pop__key pop__key--gen">avg gen</span>
+                            </div>
+                            <dl id="popInfo" class="pop__stats"></dl>
+                        </div>
+                    </section>
+
+                    <section class="panel--narrow panel--food">
+                        <h2 class="panel__title">Food</h2>
+                        <div id="foodInfo" class="panel__body"></div>
+                    </section>
                 </aside>
             </div>
 

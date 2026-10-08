@@ -1,313 +1,294 @@
-import { canvas, ctx } from "./canvas.js";
+// Lény: tisztán szimulációs logika, nem rajzol és nem ismeri a DOM-ot.
+// Minden tick: érzékel (sense) → dönt (think) → cselekszik (act).
+// Véletlent csak a világ seedelt rng-jéből használ, így a futás visszajátszható.
+
+import { defaultGenes } from "./genetics.js";
+import { getStrategy } from "./reproduction.js";
+
+// a gének a genetics.js-ben vannak; innen is elérhetők a régebbi importok miatt
+export { defaultGenes, randomGenes } from "./genetics.js";
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+// ennyi éhség alatt jóllakottnak számít, és abbahagyja az evést
+const SATIATED = 0.02;
+
+// két szög különbsége a [-π, π] tartományban
+function angleDiff(a, b) {
+    let diff = (a - b) % (Math.PI * 2);
+    if (diff > Math.PI) diff -= Math.PI * 2;
+    if (diff < -Math.PI) diff += Math.PI * 2;
+    return diff;
+}
 
 export class Creature {
-    constructor(id, x, y) {
+    constructor(id, x, y, genes = defaultGenes(), heading = 0) {
         this.id = id;
-        this.x = x;
-        this.y = y;
+        this.genes = genes;
 
-        this.directionX = 1;
-        this.directionY = 1;
-
-        // genetika (később öröklődik + mutálódik)
+        // származás
         this.generation = 0;
         this.parentId = null;
+        this.birthTick = 0;
+        this.childrenCount = 0;
+        this.reproductionTimer = 0; // ennyi tick múlva szaporodhat újra
 
-        // mozgás
-        this.maxSpeed = 1;
-        this.speed = this.maxSpeed;
-        this.turnRate = 0.1;
+        // helyzet és mozgás
+        this.x = x;
+        this.y = y;
+        this.heading = heading; // irány radiánban
+        this.speed = 0;
 
-        // anyagcsere / életciklus
+        // életfunkciók
         this.age = 0;
-        this.maxAge = 10000;
-        this.maxHealth = 100;
-        this.health = this.maxHealth;
-        this.maxEnergy = 150;
-        this.energy = this.maxEnergy;
-        this.metabolicRate = 0.25;
-
-        // érzékelés
-        this.size = 10;
-        this.visionRange = 150;
-        this.fieldOfView = Math.PI;
-
-        // táplálkozás
-        this.foodValue = 50;
-        this.eatingDuration = 80;
-        this.eatingTimer = 0;
-        this.eatingFood = null;
-
-        // szaporodás
-        this.reproductionThreshold = 120;
-        this.reproductionCost = 60;
-        this.reproductionCooldown = 0;
-
-        // viselkedés
-        this.diet = "herbivore";
-        this.hue = 30;
-        this.state = "moving";
+        this.health = genes.maxHealth;
+        this.energy = genes.maxEnergy;
         this.alive = true;
-        this.fadeAlpha = 1;
+        this.causeOfDeath = null;
+        this.deathTick = null; // a világ jegyzi be
+        this.fadeAlpha = 1; // holttest elhalványulása
+
+        // gondolkodás
+        this.state = "wandering"; // wandering | seeking | eating | exhausted | dead
+        this.target = null; // a kiszemelt kaja
+        this.targetSpawn = 0; // a kaja melyik "élete" (újraszületés után már nem ugyanaz)
+        this.seenFoods = []; // az utolsó érzékeléskor látott kaják: { food, distance }
     }
 
-    randomizeTraits() {
-        const rand = (min, max) => min + Math.random() * (max - min);
-
-        // egyedi testfelépítés: nagyobb/kisebb, gyorsabb/lassabb, közel/távol látó
-        this.maxSpeed = rand(0.6, 1.6);
-        this.speed = this.maxSpeed;
-        this.size = rand(7, 14);
-        this.visionRange = rand(90, 210);
+    // 0 = jóllakott, 1 = teljesen üres
+    get hunger() {
+        return 1 - this.energy / this.genes.maxEnergy;
     }
 
-    draw() {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    update(world) {
+        if (!this.alive) {
+            this.fadeAlpha = Math.max(this.fadeAlpha - 0.002, 0);
+            return;
+        }
+
+        this.age++;
+        this.sense(world);
+        this.think();
+        this.act(world);
+        this.updateHealth();
 
         if (this.alive) {
-            ctx.fillStyle = `hsl(${this.hue}, 70%, 55%)`;
-            ctx.strokeStyle = `hsl(${this.hue}, 70%, 28%)`;
-            ctx.globalAlpha = 1;
-        } else {
-            ctx.fillStyle = "gray";
-            ctx.strokeStyle = "rgb(60, 60, 60)";
-            ctx.globalAlpha = this.fadeAlpha;
-        }
-
-        ctx.lineWidth = 2;
-        ctx.fill();
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-    }
-
-    // fejlesztői réteg: látótávolság + mozgásirány
-    drawDebug() {
-        // látótávolság
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.visionRange, 0, Math.PI * 2);
-        ctx.strokeStyle = `hsl(${this.hue}, 70%, 55%)`;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        // mozgásirány
-        ctx.beginPath();
-        ctx.moveTo(this.x, this.y);
-        ctx.lineTo(
-            this.x + this.directionX * this.size * 2,
-            this.y + this.directionY * this.size * 2,
-        );
-        ctx.strokeStyle = `hsl(${this.hue}, 70%, 70%)`;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    }
-
-    move() {
-        this.x += this.directionX * this.speed;
-        this.y += this.directionY * this.speed;
-        this.checkEnergy();
-        this.checkCanvasCollision();
-    }
-
-    checkEnergy() {
-        // nagyobb / gyorsabb testtel "drágább" az anyagcsere
-        const cost =
-            this.metabolicRate * (this.maxSpeed / 2) * (this.size / 20);
-
-        if (this.energy > 0) {
-            this.energy = Math.max(this.energy - cost, 0);
-            this.speed = this.maxSpeed;
-        } else {
-            this.state = "rest";
-            this.speed = 0;
+            this.considerReproduction(world);
         }
     }
 
-    checkHealth() {
-        if (this.state === "rest") {
-            this.health -= 0.2;
+    // a saját stratégiája dönti el, szaporodna-e most; a születés a lépés végén történik
+    considerReproduction(world) {
+        if (this.reproductionTimer > 0) {
+            this.reproductionTimer--;
+            return;
+        }
+
+        const request = getStrategy(this.genes.reproductionStrategy).request(this, world);
+        if (request) {
+            world.queueBirth(request);
+        }
+    }
+
+    // --- érzékelés: csak azt látja, ami látótávon és látószögön belül van ---
+    sense(world) {
+        const { visionRange, fieldOfView } = this.genes;
+        this.seenFoods = [];
+
+        for (const food of world.foods) {
+            if (food.depleted) continue;
+
+            const distance = this.distanceTo(food);
+            if (distance > visionRange) continue;
+
+            // amihez hozzáér, azt látószögtől függetlenül érzékeli
+            const angle = Math.atan2(food.y - this.y, food.x - this.x);
+            const inView =
+                Math.abs(angleDiff(angle, this.heading)) <= fieldOfView / 2;
+
+            if (inView || this.canReach(food)) {
+                this.seenFoods.push({ food, distance });
+            }
+        }
+    }
+
+    // --- döntés: az állapotot minden tick-ben újraszámolja, így nem ragad be ---
+    think() {
+        if (this.energy <= 0) {
+            this.state = "exhausted";
+            this.target = null;
+            return;
+        }
+
+        // ha már eszik, addig folytatja, amíg jól nem lakik vagy el nem fogy a kaja.
+        // nem a pontos maximumig: az alapanyagcsere minden tick-ben elvesz egy kicsit,
+        // így sosem érné el, és örökre ott ragadna
+        const stillEating =
+            this.state === "eating" &&
+            this.isTargetValid() &&
+            this.canReach(this.target, 3) &&
+            this.hunger > SATIATED;
+        if (stillEating) return;
+
+        if (this.hunger < this.genes.hungerThreshold) {
+            this.state = "wandering";
+            this.target = null;
+            return;
+        }
+
+        // a korábbi célpont mellett kitart, ha még megvan (akkor is, ha épp nem nézi)
+        if (!this.isTargetValid()) {
+            this.setTarget(this.nearestSeenFood());
+        }
+
+        if (!this.target) {
+            this.state = "wandering";
+        } else if (this.canReach(this.target)) {
+            this.state = "eating";
+        } else {
+            this.state = "seeking";
+        }
+    }
+
+    // --- cselekvés: a döntés végrehajtása ---
+    act(world) {
+        switch (this.state) {
+            case "exhausted":
+                this.speed = 0;
+                break;
+            case "eating":
+                this.speed = 0;
+                this.eat();
+                break;
+            case "seeking":
+                this.steerTowards(this.target.x, this.target.y);
+                this.move(world);
+                break;
+            case "wandering":
+                this.wander(world.rng);
+                this.move(world);
+                break;
+        }
+
+        this.burnEnergy();
+    }
+
+    updateHealth() {
+        const { maxHealth, maxAge } = this.genes;
+
+        if (this.energy <= 0) {
+            this.damage(0.2, "starvation");
+        } else if (this.hunger < 0.3) {
+            // jóllakottan lassan gyógyul
+            this.health = Math.min(this.health + 0.02, maxHealth);
         }
 
         // öregkori leépülés
-        this.age++;
-        if (this.age > this.maxAge) {
-            this.health -= 0.2;
+        if (this.age > maxAge) {
+            this.damage(0.2, "old_age");
         }
+    }
 
+    damage(amount, cause) {
+        this.health -= amount;
         if (this.health <= 0) {
-            this.health = 0;
-            this.alive = false;
-            this.state = "dead";
+            this.die(cause);
         }
     }
 
-    checkCanvasCollision() {
-        // bal
-        if (this.x - this.size < 0) {
-            this.x = this.size;
-            this.directionX *= -1;
-        }
+    die(cause) {
+        this.health = 0;
+        this.alive = false;
+        this.state = "dead";
+        this.causeOfDeath = cause;
+        this.speed = 0;
+        this.target = null;
+    }
 
-        // jobb
-        if (this.x + this.size > canvas.width) {
-            this.x = canvas.width - this.size;
-            this.directionX *= -1;
-        }
+    // --- mozgás ---
 
-        // felső
-        if (this.y - this.size < 0) {
-            this.y = this.size;
-            this.directionY *= -1;
-        }
+    // a cél felé fordul (max turnRate-tel), éles kanyarban lassít, hogy ne keringjen a cél körül
+    steerTowards(x, y) {
+        const { turnRate, maxSpeed } = this.genes;
+        const diff = angleDiff(Math.atan2(y - this.y, x - this.x), this.heading);
 
-        // alsó
-        if (this.y + this.size > canvas.height) {
-            this.y = canvas.height - this.size;
-            this.directionY *= -1;
+        this.heading += clamp(diff, -turnRate, turnRate);
+        this.speed = maxSpeed * Math.max(0.2, Math.cos(diff));
+    }
+
+    // céltalan bóklászás: kis véletlen kanyarok, energiatakarékos tempó
+    wander(rng) {
+        this.heading += (rng.next() - 0.5) * this.genes.turnRate;
+        this.speed = this.genes.maxSpeed * 0.6;
+    }
+
+    move(world) {
+        this.x += Math.cos(this.heading) * this.speed;
+        this.y += Math.sin(this.heading) * this.speed;
+        this.bounceOffWalls(world);
+    }
+
+    // falról visszapattan: a megfelelő tengely mentén tükrözi az irányt
+    bounceOffWalls(world) {
+        const { size } = this.genes;
+
+        if (this.x < size || this.x > world.width - size) {
+            this.x = clamp(this.x, size, world.width - size);
+            this.heading = Math.PI - this.heading;
+        }
+        if (this.y < size || this.y > world.height - size) {
+            this.y = clamp(this.y, size, world.height - size);
+            this.heading = -this.heading;
         }
     }
+
+    // nagyobb testnek és gyorsabb mozgásnak több energia kell; álló helyzetben csak alapanyagcsere
+    burnEnergy() {
+        const { metabolicRate, size } = this.genes;
+        const cost = metabolicRate * (size / 20) * (0.1 + this.speed / 2);
+        this.energy = Math.max(this.energy - cost, 0);
+    }
+
+    // --- táplálkozás ---
 
     eat() {
-        if (!this.eatingFood) return;
-
-        // ennyit szeretne falni ebben a tick-ben...
-        const want = this.foodValue / this.eatingDuration;
-        // ...de csak annyit kap, amennyi az adott kajából épp jut
-        const got = this.eatingFood.bite(want);
-
-        this.energy = Math.min(this.energy + got, this.maxEnergy);
+        // csak annyit eszik, amennyi még belefér: nem pazarolja a kaját
+        const room = this.genes.maxEnergy - this.energy;
+        const got = this.target.bite(Math.min(this.genes.eatingSpeed, room));
+        this.energy += got;
     }
 
-    findNearestFood(foods) {
+    setTarget(food) {
+        this.target = food;
+        this.targetSpawn = food ? food.spawnCount : 0;
+    }
+
+    // a célpont még ugyanaz a kaja-példány, nem fogyott el és nem került túl messzire
+    isTargetValid() {
+        const food = this.target;
+        return (
+            food !== null &&
+            !food.depleted &&
+            food.spawnCount === this.targetSpawn &&
+            this.distanceTo(food) <= this.genes.visionRange
+        );
+    }
+
+    nearestSeenFood() {
         let nearest = null;
-        let nearestDistance = Infinity;
-
-        for (const food of foods) {
-            const dx = food.x - this.x;
-            const dy = food.y - this.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            if (distance < nearestDistance) {
-                nearest = food;
-                nearestDistance = distance;
+        for (const seen of this.seenFoods) {
+            if (!nearest || seen.distance < nearest.distance) {
+                nearest = seen;
             }
         }
-
-        return { food: nearest, distance: nearestDistance };
+        return nearest ? nearest.food : null;
     }
 
-    checkFoodCollision(foods) {
-        const { food, distance } = this.findNearestFood(foods);
-        if (!food) return;
-
-        if (distance <= this.size + food.size) {
-            // nem eszik azonnal tovább: megáll és eszik egy ideig
-            this.state = "eating";
-            this.eatingTimer = this.eatingDuration;
-            this.eatingFood = food;
-            this.speed = 0;
-        }
+    canReach(food, slack = 0) {
+        return this.distanceTo(food) <= this.genes.size + food.size + slack;
     }
 
-    searchFood(foods) {
-        const { food, distance } = this.findNearestFood(foods);
-        if (!food) return;
-
-        if (distance <= this.visionRange) {
-            this.directionX = (food.x - this.x) / distance;
-            this.directionY = (food.y - this.y) / distance;
-            this.state = "searching";
-        }
-    }
-
-    getCardHTML() {
-        const color = `hsl(${this.hue}, 70%, 55%)`;
-        const pct = (value, max) =>
-            Math.max(0, Math.min(100, (value / max) * 100));
-
-        const meter = (label, value, max, mod) => `
-            <div class="ccard__stat-row">
-                <span>${label}</span>
-                <span>${Math.round(value)} / ${max}</span>
-            </div>
-            <div class="ccard__meter">
-                <span class="ccard__meter-fill ccard__meter-fill--${mod}" style="width:${pct(value, max)}%"></span>
-            </div>`;
-
-        return `
-            <div class="ccard${this.alive ? "" : " ccard--dead"}" style="--c:${color}">
-                <div class="ccard__head">
-                    <span class="ccard__id">#${this.id}</span>
-                    <span class="ccard__gen">gen ${this.generation}</span>
-                    <span class="ccard__state">${this.alive ? this.state : "dead"}</span>
-                </div>
-                ${meter("hp", this.health, this.maxHealth, "hp")}
-                ${meter("en", this.energy, this.maxEnergy, "en")}
-                <div class="ccard__traits">
-                    <span>spd ${this.maxSpeed.toFixed(2)}</span>
-                    <span>sz ${this.size.toFixed(1)}</span>
-                    <span>vis ${Math.round(this.visionRange)}</span>
-                    <span>age ${this.age}</span>
-                </div>
-            </div>`;
-    }
-
-    separate(others) {
-        for (const other of others) {
-            if (other === this) continue;
-
-            const dx = other.x - this.x;
-            const dy = other.y - this.y;
-            let distance = Math.sqrt(dx * dx + dy * dy);
-            const minDistance = this.size + other.size;
-
-            if (distance === 0) distance = 0.01;
-
-            if (distance < minDistance) {
-                const overlap = (minDistance - distance) / 2;
-                const nx = dx / distance;
-                const ny = dy / distance;
-
-                this.x -= nx * overlap;
-                this.y -= ny * overlap;
-                other.x += nx * overlap;
-                other.y += ny * overlap;
-            }
-        }
-
-        // ne tolódjon ki a pályáról
-        this.x = Math.min(Math.max(this.x, this.size), canvas.width - this.size);
-        this.y = Math.min(Math.max(this.y, this.size), canvas.height - this.size);
-    }
-
-    update(foods) {
-        if (!this.alive) {
-            // holttest lassú elhalványulása (tick-alapú, nem képkocka-alapú)
-            this.fadeAlpha = Math.max(this.fadeAlpha - 0.01, 0.5);
-            return;
-        }
-
-        if (this.reproductionCooldown > 0) {
-            this.reproductionCooldown--;
-        }
-
-        if (this.state === "eating") {
-            this.eat();
-            this.eatingTimer--;
-
-            const foodGone = !this.eatingFood || this.eatingFood.depleted;
-            if (this.eatingTimer <= 0 || foodGone) {
-                this.eatingFood = null;
-                this.state = "moving";
-            }
-
-            this.checkHealth();
-            return;
-        }
-
-        this.searchFood(foods);
-        this.checkFoodCollision(foods);
-        this.move();
-        this.checkHealth();
+    distanceTo(other) {
+        return Math.hypot(other.x - this.x, other.y - this.y);
     }
 }

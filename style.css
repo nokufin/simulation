@@ -11,6 +11,10 @@
     --creatures-h: 202px;
     --food-w: 210px;
 
+    /* a pálya mérete (képarányhoz); a main.js felülírja a config.js értékeivel */
+    --world-w: 1280;
+    --world-h: 600;
+
     /* a pálya magassága: ami függőlegesen marad, de vízszintesen se lógjon ki */
     --canvas-h: min(
         calc(
@@ -18,11 +22,11 @@
                 var(--creatures-h)
         ),
         calc(
-            (100vw - 2 * var(--body-pad) - var(--gap) - var(--food-w)) * 600 /
-                1280
+            (100vw - 2 * var(--body-pad) - var(--gap) - var(--food-w)) *
+                var(--world-h) / var(--world-w)
         )
     );
-    --canvas-w: calc(var(--canvas-h) * 1280 / 600);
+    --canvas-w: calc(var(--canvas-h) * var(--world-w) / var(--world-h));
 }
 
 body {
@@ -162,20 +166,95 @@ body {
     border-radius: 4px;
 }
 
-.panel {
+/* jobb oldali oszlop: populáció (fix) + kaja (kitölti a maradékot) */
+.side {
     display: flex;
     flex-direction: column;
     flex: none;
+    gap: var(--gap);
     width: var(--food-w);
     height: var(--canvas-h);
 }
 
 .panel--narrow {
+    display: flex;
+    flex-direction: column;
     width: var(--food-w);
     background-color: rgb(28, 27, 27);
     border: 1px solid rgb(60, 58, 58);
     border-radius: 4px;
     overflow: hidden;
+}
+
+.panel--population {
+    flex: none;
+}
+
+.panel--food {
+    flex: 1;
+    min-height: 0;
+}
+
+.panel--food .panel__body {
+    overflow-y: auto;
+}
+
+.pop {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+}
+
+.pop__chart {
+    display: block;
+    width: 100%;
+    height: 70px;
+    border-radius: 3px;
+    background-color: rgb(22, 21, 21);
+}
+
+.pop__legend {
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: rgb(150, 150, 150);
+}
+
+.pop__key::before {
+    content: "";
+    display: inline-block;
+    width: 10px;
+    height: 2px;
+    margin-right: 5px;
+    vertical-align: middle;
+}
+
+.pop__key--alive::before {
+    background-color: rgb(90, 150, 220);
+}
+
+.pop__key--gen::before {
+    background-color: rgb(230, 190, 70);
+}
+
+.pop__stats {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 8px;
+    margin: 0;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.pop__stats dt {
+    color: rgb(150, 150, 150);
+}
+
+.pop__stats dd {
+    margin: 0;
+    text-align: right;
+    font-weight: 600;
 }
 
 .panel__title {
@@ -210,17 +289,20 @@ body {
     overflow: hidden;
 }
 
+/* sok lénynél vízszintesen görgethető */
 .creatures__row {
     display: flex;
     flex: 1;
     min-height: 0;
     gap: 8px;
     padding: 8px;
+    overflow-x: auto;
 }
 
 .ccard {
-    flex: 1;
-    min-width: 0;
+    flex: 1 0 180px;
+    min-width: 180px;
+    max-width: 260px;
     padding: 10px 12px;
     border-left: 4px solid var(--c, gray);
     border-radius: 3px;
@@ -343,4 +425,10 @@ body {
     width: 44px;
     text-align: right;
     color: rgb(170, 170, 170);
+}
+
+.ccard__lineage {
+    margin: -4px 0 8px;
+    font-size: 11px;
+    color: rgb(140, 140, 140);
 }

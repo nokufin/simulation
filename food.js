@@ -1,13 +1,15 @@
-import { canvas, ctx } from "./canvas.js";
+// Kaja: véges mennyiség, falatonként fogy, elfogyás után új helyen újraszületik.
 
 export class Food {
-    constructor(id, x, y) {
+    constructor(id) {
         this.id = id;
-        this.x = x;
-        this.y = y;
+        this.x = 0;
+        this.y = 0;
         this.size = 6;
         this.maxAmount = 50;
         this.amount = this.maxAmount;
+        // hányszor született újra: így a lény észreveszi, ha a régi célpontja eltűnt
+        this.spawnCount = 0;
     }
 
     // egy falat: annyit ad vissza, amennyi tényleg maradt
@@ -21,22 +23,11 @@ export class Food {
         return this.amount <= 0;
     }
 
-    draw() {
-        // a sugár a maradék mennyiséggel zsugorodik
-        const r = this.size * (0.35 + 0.65 * (this.amount / this.maxAmount));
-
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
-        ctx.fillStyle = "cyan";
-        ctx.strokeStyle = "rgb(0, 110, 120)";
-        ctx.lineWidth = 2;
-        ctx.fill();
-        ctx.stroke();
-    }
-
-    respawn() {
-        this.x = this.size + Math.random() * (canvas.width - this.size * 2);
-        this.y = this.size + Math.random() * (canvas.height - this.size * 2);
+    respawn(world) {
+        const point = world.randomPoint(this.size);
+        this.x = point.x;
+        this.y = point.y;
         this.amount = this.maxAmount;
+        this.spawnCount++;
     }
 }

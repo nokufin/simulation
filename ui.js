@@ -1,4 +1,4 @@
-import { getSpecies } from "./species.js";
+import { getSpecies, bodyColor, speciesColor } from "./species.js";
 
 const inspectorBody = document.getElementById("inspectorBody");
 const deselectBtn = document.getElementById("deselectBtn");
@@ -69,21 +69,24 @@ export function renderInspector(view) {
 
     setHTML(
         inspectorBody,
-        `${notice}<div class="${classes.join(" ")}" style="--c:hsl(${view.hue}, 70%, 55%)">${sections}</div>`,
+        `${notice}<div class="${classes.join(" ")}" style="--c:${bodyColor(view.hue, view.speciesId)}">${sections}</div>`,
     );
 }
 
+// az értékek szövegek (az AI indoklása a modelltől jön), ezért HTML-ként nem értelmeződhetnek
+const escapeHTML = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 function rowHTML(row) {
-    return `<div class="isec__row" data-key="${row.key}"><dt>${row.label}</dt><dd>${swatchHTML(row)}${row.value}${meterHTML(row)}</dd></div>`;
+    return `<div class="isec__row" data-key="${row.key}"><dt>${row.label}</dt><dd>${swatchHTML(row)}${escapeHTML(row.value)}${meterHTML(row)}</dd></div>`;
 }
 
 // színminta: "fill" = a lény saját színe (kitöltött pötty), "ring" = a faj színe (körvonal)
 function swatchHTML(row) {
     if (row.swatch === undefined || row.swatch === null) return "";
     if (row.swatchKind === "ring") {
-        return `<span class="swatch swatch--ring" style="border-color:hsl(${row.swatch}, 75%, 60%)"></span>`;
+        return `<span class="swatch swatch--ring" style="border-color:${speciesColor(row.swatchSpecies)}"></span>`;
     }
-    return `<span class="swatch" style="background:hsl(${row.swatch}, 70%, 55%)"></span>`;
+    return `<span class="swatch" style="background:${bodyColor(row.swatch, row.swatchSpecies)}"></span>`;
 }
 
 function meterHTML(row) {
@@ -125,20 +128,30 @@ export function renderSimInfo(world) {
     );
 }
 
+// a kaja élőhelyenként külön blokkban, összesített mennyiséggel
 export function renderFoodInfo(foods) {
-    setHTML(foodInfo, foods
-        .map((food) => {
-            const pct = (food.amount / food.maxAmount) * 100;
-            return `
+    const block = (habitat, title) => {
+        const list = foods.filter((food) => food.habitat === habitat);
+        if (list.length === 0) return "";
+        const total = Math.round(list.reduce((sum, food) => sum + food.amount, 0));
+        const max = list.reduce((sum, food) => sum + food.maxAmount, 0);
+        const rows = list
+            .map((food) => {
+                const pct = (food.amount / food.maxAmount) * 100;
+                return `
                 <div class="frow">
                     <span class="frow__id">#${food.id}</span>
                     <span class="frow__meter">
-                        <span class="frow__meter-fill" style="width:${pct}%"></span>
+                        <span class="frow__meter-fill frow__meter-fill--${habitat}" style="width:${pct}%"></span>
                     </span>
                     <span class="frow__num">${Math.round(food.amount)} / ${food.maxAmount}</span>
                 </div>`;
-        })
-        .join(""));
+            })
+            .join("");
+        return `<div class="fgroup"><div class="fgroup__head"><span>${title}</span><span>${total} / ${max}</span></div>${rows}</div>`;
+    };
+
+    setHTML(foodInfo, block("land", "Szárazföld") + block("water", "Víz"));
 }
 
 // populáció panel: grafikon (élők + átlagos generáció) és összesítő számok.
@@ -146,6 +159,7 @@ export function renderFoodInfo(foods) {
 export function renderPopulation(summary, history) {
     const stats = {
         "alive / limit": `${summary.alive} / ${summary.limit}`,
+        "land / water": `${summary.landAlive} / ${summary.waterAlive}${summary.amphibiousAlive ? ` (+${summary.amphibiousAlive} amphibious)` : ""}`,
         births: summary.births,
         "deaths: starvation": summary.starvation,
         "deaths: old age": summary.oldAge,
@@ -226,7 +240,18 @@ const explorerGroups = new Map(); // csoportkulcs → { root, head, count, chevr
 const highlightedIds = new Set(); // a kiemelt (kijelölt) sorok id-i
 
 const rowDomId = (id) => `explorer-row-${id}`;
-const speciesColor = (hue) => (hue === null ? "rgb(120, 120, 120)" : `hsl(${hue}, 70%, 55%)`);
+
+// pötty-stílus: a lény saját színe kitöltve, a faj színe körvonalként (mint a térképen).
+// A fekete faj körvonala a sötét felületen nem látszana, ezért kap még egy világos szegélyt.
+function dotStyle(hue, speciesId) {
+    const species = getSpecies(speciesId);
+    let ring = "";
+    if (species.hue !== null) {
+        ring = `; box-shadow: 0 0 0 1.5px ${speciesColor(speciesId)}`;
+        if (species.tone === "black") ring += ", 0 0 0 2.5px rgb(140, 140, 140)";
+    }
+    return `background:${bodyColor(hue, speciesId)}${ring}`;
+}
 
 function createExplorerRow(entry) {
     const row = document.createElement("li");
@@ -236,9 +261,7 @@ function createExplorerRow(entry) {
     row.setAttribute("aria-selected", "false");
     row.dataset.id = String(entry.id);
     // a pötty a lény saját színe, a körvonala a faj színe (mint a térképen)
-    const ring = getSpecies(entry.speciesId).hue;
-    const ringStyle = ring === null ? "" : `; box-shadow: 0 0 0 1.5px hsl(${ring}, 75%, 60%)`;
-    row.innerHTML = `<span class="exrow__dot" style="background:hsl(${entry.hue}, 70%, 55%)${ringStyle}"></span><span class="exrow__id">#${entry.id}</span><span class="exrow__gen">gen ${entry.generation}</span>`;
+    row.innerHTML = `<span class="exrow__dot" style="${dotStyle(entry.hue, entry.speciesId)}"></span><span class="exrow__id">#${entry.id}</span><span class="exrow__gen">gen ${entry.generation}</span>`;
     return row;
 }
 
@@ -265,17 +288,23 @@ function ensureExplorerGroups(groups) {
         chevron.setAttribute("aria-hidden", "true");
         const dot = document.createElement("span");
         dot.className = "exrow__dot";
-        dot.style.background = speciesColor(group.hue);
+        dot.style.background = speciesColor(group.speciesId);
+        if (getSpecies(group.speciesId).tone === "black") dot.style.boxShadow = "0 0 0 1px rgb(140, 140, 140)";
         const name = document.createElement("span");
         name.className = "exgroup__name";
         name.textContent = group.name;
+        // a faj induló élőhelye (nem fajkorlát: a leszármazottak génjei eltávolodhatnak tőle)
+        const habitat = document.createElement("span");
+        habitat.className = "exgroup__habitat";
+        habitat.textContent = group.habitat === "water" ? "víz" : group.habitat === "land" ? "szárazföld" : "";
+        habitat.title = "A faj induló élőhelye";
         const count = document.createElement("span");
         count.className = "exgroup__count";
         // jelzés, ha a csoportban kijelölt egyed van (összecsukva is látszik)
         const sel = document.createElement("span");
         sel.className = "exgroup__sel";
         sel.hidden = true;
-        head.append(chevron, dot, name, sel, count);
+        head.append(chevron, dot, name, habitat, sel, count);
 
         const rows = document.createElement("ul");
         rows.className = "exgroup__rows";
@@ -504,13 +533,12 @@ function setText(element, text) {
 }
 
 // színminta: a lény saját színe kitöltve, a faj színe körvonalként (mint a térképen)
-function creatureDot(hue, speciesHue) {
-    const ring = speciesHue === null ? "" : `; box-shadow: 0 0 0 1.5px hsl(${speciesHue}, 75%, 60%)`;
-    return `<span class="cmp__dot" style="background:hsl(${hue}, 70%, 55%)${ring}"></span>`;
+function creatureDot(hue, speciesId) {
+    return `<span class="cmp__dot" style="${dotStyle(hue, speciesId)}"></span>`;
 }
 
 function cellHTML(cell) {
-    return `${swatchHTML(cell)}${cell.value}${meterHTML(cell)}`;
+    return `${swatchHTML(cell)}${escapeHTML(cell.value)}${meterHTML(cell)}`;
 }
 
 // A táblázat szerkezete csak akkor épül újra, ha a kijelöltek köre / állapota vagy a nyitott
@@ -524,7 +552,7 @@ function renderComparison(desc) {
     }));
 
     const structure = JSON.stringify([
-        columns.map((c) => [c.id, c.status, c.hue, c.speciesHue]),
+        columns.map((c) => [c.id, c.status, c.hue, c.speciesId]),
         sections.map((s) => [s.key, s.open, s.open ? s.rows.map((r) => r.key) : []]),
     ]);
 
@@ -570,7 +598,7 @@ function comparisonHTML(columns, sections) {
             (c) => `
             <span class="chip${c.dead ? " is-dead" : ""}">
                 <span class="chip__num">${c.number}</span>
-                ${creatureDot(c.hue, c.speciesHue)}
+                ${creatureDot(c.hue, c.speciesId)}
                 <span class="chip__id">#${c.id}</span>
                 <span class="chip__species">${c.speciesName}</span>
                 ${c.dead ? `<span class="chip__dead">${c.removed ? "HALOTT · eltávolítva" : "HALOTT"}</span>` : ""}
@@ -586,7 +614,7 @@ function comparisonHTML(columns, sections) {
     const head = `<tr><th scope="col" class="cmp__corner">Tulajdonság</th>${columns
         .map(
             (c) =>
-                `<th scope="col" class="cmp__col${c.dead ? " is-dead" : ""}"><span class="chip__num">${c.number}</span>${creatureDot(c.hue, c.speciesHue)}#${c.id}</th>`,
+                `<th scope="col" class="cmp__col${c.dead ? " is-dead" : ""}"><span class="chip__num">${c.number}</span>${creatureDot(c.hue, c.speciesId)}#${c.id}</th>`,
         )
         .join("")}</tr>`;
 
@@ -623,4 +651,40 @@ function comparisonHTML(columns, sections) {
             </div>
             <p class="cmp__legend">A kiemelt sorokban eltérnek az értékek. Az eltérés önmagában nem jó vagy rossz.</p>
         </div>`;
+}
+
+// --- AI (Ollama) kapcsoló és állapot ---
+
+const aiBtn = document.getElementById("aiBtn");
+const aiStatus = document.getElementById("aiStatus");
+
+const AI_STATUS_TEXT = {
+    off: "AI kikapcsolva",
+    checking: "Ollama keresése…",
+    ready: "AI kész",
+    thinking: "AI gondolkodik…",
+    error: "AI hiba",
+};
+
+// onToggle(): az új (boolean) állapotot adja vissza
+export function initAiControl(onToggle, enabled) {
+    const show = (on) => {
+        aiBtn.classList.toggle("is-active", on);
+        aiBtn.setAttribute("aria-pressed", String(on));
+    };
+    show(enabled);
+    aiBtn.addEventListener("click", () => show(onToggle()));
+}
+
+// brain: az ai-brain.js AiBrain példánya
+export function renderAiStatus(brain) {
+    const parts = [AI_STATUS_TEXT[brain.status] ?? brain.status];
+    if (brain.statusText) parts.push(brain.statusText);
+    if (brain.decisions > 0) parts.push(`${brain.decisions} döntés`);
+    if (brain.lastLatencyMs !== null && brain.status !== "error") parts.push(`${(brain.lastLatencyMs / 1000).toFixed(1)} s`);
+    const text = parts.join(" · ");
+
+    if (aiStatus.dataset.status !== brain.status) aiStatus.dataset.status = brain.status;
+    setText(aiStatus, text);
+    aiStatus.title = text;
 }

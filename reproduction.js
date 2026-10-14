@@ -7,6 +7,7 @@
 // bejegyzés a STRATEGIES-ben; a lény a genes.reproductionStrategy alapján választ.
 
 import { mutateGenes } from "./genetics.js";
+import { isSolitarySpecies } from "./species.js";
 
 // a szülő által fizetett energia: mindig több, mint amit az utód kap,
 // így a szaporodás sosem termel energiát (a hatásfok legfeljebb 1 lehet)
@@ -33,6 +34,11 @@ function soloBlockers(creature, world) {
 
     if (!creature.alive) {
         blockers.push({ code: "dead" });
+        return blockers;
+    }
+    // a magányos faj (a fekete AI) sosem szaporodik
+    if (isSolitarySpecies(creature.speciesId)) {
+        blockers.push({ code: "species" });
         return blockers;
     }
     if (creature.age < genes.maturityAge) {

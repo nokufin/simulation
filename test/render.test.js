@@ -114,7 +114,7 @@ test("a panel külön mutatja a fajt (körvonal) és az egyedi színt (kitölté
     const cases = [
         [{ speciesId: "red", genes: { hue: 48 } }, "48° (fajszíntől +48°)"],
         [{ speciesId: "red", genes: { hue: 350 } }, "350° (fajszíntől −10°)"],
-        [{ speciesId: "orange", genes: { hue: 40 } }, "40° (a faj színe)"],
+        [{ speciesId: "yellow", genes: { hue: 55 } }, "55° (a faj színe)"],
         [{ speciesId: "purple", genes: { hue: 274.6 } }, "275° (fajszíntől −5°)"],
     ];
 

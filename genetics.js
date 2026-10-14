@@ -25,6 +25,13 @@ export function defaultGenes() {
         reproductionThreshold: 0.8, // a maxEnergy ennyi része kell a szaporodáshoz
         offspringEnergy: 60, // ennyi energiával indul az utód
         reproductionCooldown: 1500, // két utód között eltelő idő (tick)
+
+        // élőhely (0..1, lásd habitat.js): légzés és mozgékonyság közegenként.
+        // Az alapérték a szárazföldi profil; a vízi alapítók a fajuk szerint mást kapnak.
+        airBreathing: 0.9, // levegőből lélegzik (≥ 0,5: szárazföldön és sekély vízben életképes)
+        waterBreathing: 0.05, // vízből lélegzik (≥ 0,5: mély vízben életképes)
+        landMobility: 1, // a maxSpeed szorzója szárazföldön
+        waterMobility: 0.3, // a maxSpeed szorzója vízben
     };
 }
 
@@ -43,6 +50,12 @@ export const GENE_LIMITS = {
     visionRange: [20, 400],
     fieldOfView: [Math.PI * 0.2, Math.PI * 2],
     hungerThreshold: [0.05, 0.9],
+    // élőhely-gének: a szorzós mutáció miatt egy 0,05-ös érték csak sok generáció alatt
+    // érheti el a 0,5-ös légzési küszöböt, így nincs hirtelen élőhelyváltás
+    airBreathing: [0.01, 1],
+    waterBreathing: [0.01, 1],
+    landMobility: [0.01, 1],
+    waterMobility: [0.01, 1],
 };
 
 // a szín nem korlátos, hanem körbefordul; mutációkor legfeljebb ennyit csúszik (fok)

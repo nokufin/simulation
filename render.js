@@ -1,6 +1,33 @@
 // Kirajzolás: csak olvassa a világ állapotát, sosem módosítja.
 
-import { getSpecies } from "./species.js";
+import { getSpecies, bodyColor, bodyEdgeColor, speciesColor, accentColor } from "./species.js";
+import { LAND, SHALLOW } from "./habitat.js";
+
+// a terep színei: visszafogottak, hogy a fajszínű körvonalak és a kaja jól látsszanak rajtuk
+const TERRAIN_COLORS = {
+    [LAND]: "rgb(78, 96, 58)",
+    [SHALLOW]: "rgb(54, 104, 140)",
+    deep: "rgb(30, 64, 104)",
+};
+
+// a kaja színe élőhelyenként (szárazföldi: növényzöld, vízi: plankton-cián)
+const FOOD_COLORS = {
+    land: { fill: "rgb(176, 226, 96)", stroke: "rgb(70, 100, 30)" },
+    water: { fill: "rgb(120, 228, 240)", stroke: "rgb(20, 90, 110)" },
+};
+
+// a terep kirajzolása (egyszer, egy háttérképre; lásd main.js), cellánként egy téglalap
+export function paintTerrain(ctx, terrain) {
+    const { cols, rows, cellSize, types } = terrain;
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const type = types[r * cols + c];
+            ctx.fillStyle = TERRAIN_COLORS[type] ?? TERRAIN_COLORS.deep;
+            // +1: a szomszédos cellák közt ne maradjon hajszálrés
+            ctx.fillRect(c * cellSize, r * cellSize, cellSize + 1, cellSize + 1);
+        }
+    }
+}
 
 const GRID_SIZE = 100;
 
@@ -14,8 +41,10 @@ const SELECTION_RING_GAP = 8;
 // sorszámát megtartja), egyetlen lény vagy null;
 // a gyűrűk a pillanatnyi helyüket követik. Több kijelöltnél a gyűrű mellett a sorszám is
 // látszik, ugyanaz, mint az összehasonlító táblázat oszlopáé.
-export function drawWorld(ctx, world, { debug = false, selected = null } = {}) {
+// background: a terep előre kirajzolt képe (ha nincs, a canvas CSS-háttere látszik)
+export function drawWorld(ctx, world, { debug = false, selected = null, background = null } = {}) {
     ctx.clearRect(0, 0, world.width, world.height);
+    if (background) ctx.drawImage(background, 0, 0);
 
     if (debug) {
         drawGrid(ctx, world);
@@ -97,10 +126,11 @@ function drawFood(ctx, food) {
     // a sugár a maradék mennyiséggel zsugorodik
     const r = food.size * (0.35 + 0.65 * (food.amount / food.maxAmount));
 
+    const colors = FOOD_COLORS[food.habitat] ?? FOOD_COLORS.land;
     ctx.beginPath();
     ctx.arc(food.x, food.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = "cyan";
-    ctx.strokeStyle = "rgb(0, 110, 120)";
+    ctx.fillStyle = colors.fill;
+    ctx.strokeStyle = colors.stroke;
     ctx.lineWidth = 2;
     ctx.fill();
     ctx.stroke();
@@ -116,8 +146,8 @@ function drawCreature(ctx, creature) {
     ctx.beginPath();
     ctx.arc(creature.x, creature.y, size, 0, Math.PI * 2);
     if (creature.alive) {
-        ctx.fillStyle = `hsl(${hue}, 70%, 55%)`;
-        ctx.strokeStyle = `hsl(${hue}, 70%, 28%)`;
+        ctx.fillStyle = bodyColor(hue, creature.speciesId);
+        ctx.strokeStyle = bodyEdgeColor(hue, creature.speciesId);
     } else {
         ctx.fillStyle = "gray";
         ctx.strokeStyle = "rgb(60, 60, 60)";
@@ -130,7 +160,7 @@ function drawCreature(ctx, creature) {
     if (species.hue !== null) {
         ctx.beginPath();
         ctx.arc(creature.x, creature.y, size + SPECIES_RING_GAP, 0, Math.PI * 2);
-        ctx.strokeStyle = `hsl(${species.hue}, 75%, 60%)`;
+        ctx.strokeStyle = speciesColor(creature.speciesId);
         ctx.lineWidth = SPECIES_RING_WIDTH;
         ctx.stroke();
     }
@@ -148,8 +178,8 @@ function drawCreatureDebug(ctx, creature) {
     ctx.moveTo(x, y);
     ctx.arc(x, y, visionRange, heading - fieldOfView / 2, heading + fieldOfView / 2);
     ctx.closePath();
-    ctx.fillStyle = `hsla(${hue}, 70%, 55%, 0.06)`;
-    ctx.strokeStyle = `hsla(${hue}, 70%, 55%, 0.5)`;
+    ctx.fillStyle = accentColor(hue, creature.speciesId, 0.06);
+    ctx.strokeStyle = accentColor(hue, creature.speciesId, 0.5);
     ctx.lineWidth = 1;
     ctx.fill();
     ctx.stroke();
@@ -158,7 +188,7 @@ function drawCreatureDebug(ctx, creature) {
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.lineTo(x + Math.cos(heading) * size * 2, y + Math.sin(heading) * size * 2);
-    ctx.strokeStyle = `hsl(${hue}, 70%, 70%)`;
+    ctx.strokeStyle = accentColor(hue, creature.speciesId);
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -168,7 +198,7 @@ function drawCreatureDebug(ctx, creature) {
         ctx.moveTo(x, y);
         ctx.lineTo(creature.target.x, creature.target.y);
         ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = `hsla(${hue}, 70%, 70%, 0.6)`;
+        ctx.strokeStyle = accentColor(hue, creature.speciesId, 0.6);
         ctx.lineWidth = 1;
         ctx.stroke();
         ctx.setLineDash([]);

@@ -53,6 +53,7 @@ export function groupBySpecies(world, entries) {
         speciesId: species.id,
         name: species.name,
         hue: species.hue,
+        habitat: species.habitat, // a faj induló élőhelye ("land" / "water" / null)
         alive: aliveBySpecies.get(groupKey(species.id)) ?? 0,
         entries: [],
     }));

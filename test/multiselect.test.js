@@ -16,7 +16,7 @@ import { makeWorld, addCreature, run, snapshot } from "./helpers.js";
 // hat lény sorban, különböző fajokból (#1..#6)
 function sixCreatures() {
     const world = makeWorld();
-    const species = ["red", "orange", "green", "blue", "purple", "red"];
+    const species = ["red", "yellow", "green", "blue", "purple", "red"];
     species.forEach((speciesId, i) => addCreature(world, 100 + i * 200, 300, { speciesId }));
     return world;
 }
@@ -290,9 +290,9 @@ test("az oszlopok fejléce: id, faj neve és színe, egyedi szín", () => {
     selection.select(world.creatures[0]);
     selection.toggle(world.creatures[1]);
 
-    const [red, orange] = describeSelection(selection, world).columns;
+    const [red, yellow] = describeSelection(selection, world).columns;
     assert.deepEqual([red.id, red.speciesName, red.speciesHue], [1, "Piros", 0]);
-    assert.deepEqual([orange.id, orange.speciesName, orange.speciesHue, orange.hue], [2, "Narancs", 40, 52]);
+    assert.deepEqual([yellow.id, yellow.speciesName, yellow.speciesHue, yellow.hue], [2, "Citromsárga", 55, 52]);
 });
 
 test("minden cella pontosan az egyedi panel ugyanazon értéke (a tényleges modellből)", () => {

@@ -9,11 +9,12 @@ test("az alap világ a config.js szerint épül fel", () => {
     assert.equal(world.width, WORLD_CONFIG.width);
     assert.equal(world.height, WORLD_CONFIG.height);
     assert.equal(world.creatures.length, WORLD_CONFIG.initialCreatures);
-    assert.equal(world.foods.length, WORLD_CONFIG.initialFood);
+    assert.equal(world.foods.filter((f) => f.habitat === "land").length, WORLD_CONFIG.initialLandFood);
+    assert.equal(world.foods.filter((f) => f.habitat === "water").length, WORLD_CONFIG.initialWaterFood);
 });
 
 test("a config egyes mezői felülírhatók egy világra", () => {
-    const world = createDefaultWorld(1, { width: 400, height: 300, initialCreatures: 12, initialFood: 3 });
+    const world = createDefaultWorld(1, { width: 400, height: 300, initialCreatures: 12, initialLandFood: 2, initialWaterFood: 1 });
 
     assert.deepEqual([world.width, world.height], [400, 300]);
     assert.equal(world.creatures.length, 12);

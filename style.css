@@ -135,6 +135,51 @@ body {
     color: rgb(255, 255, 255);
 }
 
+/* AI (Ollama) kapcsoló és állapot a fejlécben */
+.ai-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ai-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 320px;
+    overflow: hidden;
+    font-size: 12px;
+    color: rgb(170, 170, 170);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ai-status::before {
+    content: "";
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: rgb(110, 110, 110);
+}
+
+.ai-status[data-status="ready"]::before {
+    background-color: rgb(90, 200, 120);
+}
+
+.ai-status[data-status="thinking"]::before {
+    background-color: rgb(230, 190, 70);
+}
+
+.ai-status[data-status="error"]::before {
+    background-color: rgb(235, 110, 100);
+}
+
+.ai-status[data-status="error"] {
+    color: rgb(235, 140, 130);
+}
+
 .sim-info {
     display: flex;
     gap: 18px;
@@ -418,6 +463,38 @@ body {
 .isec--genes .isec__rows {
     column-count: 2;
     column-gap: 18px;
+}
+
+/* az AI-döntés sávja a többi szekció fölött, teljes szélességben */
+.isec--ai {
+    grid-column: 1 / -1;
+    order: -1;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: rgb(22, 21, 21);
+}
+
+.isec--ai .isec__rows {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 22px;
+}
+
+.isec--ai .isec__row {
+    justify-content: flex-start;
+}
+
+.isec--ai .isec__row dd {
+    text-align: left;
+}
+
+.isec--ai .isec__row[data-key="reason"] {
+    flex-basis: 100%;
+}
+
+.isec--ai .isec__row[data-key="reason"] dd {
+    font-weight: 400;
+    font-style: italic;
 }
 
 .isec__row {
@@ -994,4 +1071,40 @@ body {
     margin: 0;
     font-size: 11px;
     color: rgb(120, 120, 120);
+}
+
+/* --- Food panel: élőhelyenként külön blokk --- */
+.fgroup {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.fgroup + .fgroup {
+    margin-top: 6px;
+}
+
+.fgroup__head {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgb(150, 150, 150);
+    font-variant-numeric: tabular-nums;
+}
+
+.frow__meter-fill--land {
+    background-color: rgb(176, 226, 96);
+}
+
+.frow__meter-fill--water {
+    background-color: rgb(120, 228, 240);
+}
+
+.exgroup__habitat {
+    font-size: 10px;
+    font-weight: 400;
+    color: rgb(130, 130, 130);
 }

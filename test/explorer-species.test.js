@@ -8,10 +8,10 @@ import { makeWorld, addCreature, addReadyParent, run } from "./helpers.js";
 
 const groupOf = (diff, key) => diff.groups.find((g) => g.key === key);
 
-// kis világ ismert fajokkal: #1 narancs, #2 piros, #3 piros, #4 kék
+// kis világ ismert fajokkal: #1 citromsárga, #2 piros, #3 piros, #4 kék
 function smallWorld() {
     const world = makeWorld();
-    addCreature(world, 100, 100, { speciesId: "orange", generation: 1 });
+    addCreature(world, 100, 100, { speciesId: "yellow", generation: 1 });
     addCreature(world, 300, 100, { speciesId: "red" });
     addCreature(world, 500, 100, { speciesId: "red", generation: 2 });
     addCreature(world, 700, 100, { speciesId: "blue" });
@@ -27,10 +27,11 @@ test("a csoportok a fajok sorrendjében jönnek, névvel, színnel és élő lé
         diff.groups.map((g) => [g.key, g.name, g.hue, g.alive]),
         [
             ["red", "Piros", 0, 2],
-            ["orange", "Narancs", 40, 1],
-            ["green", "Zöld", 130, 0],
             ["blue", "Kék", 205, 1],
+            ["green", "Zöld", 130, 0],
+            ["yellow", "Citromsárga", 55, 1],
             ["purple", "Lila", 280, 0],
+            ["black", "Fekete (AI)", 0, 0],
             ["none", "Faj nélkül", null, 0],
         ],
     );
@@ -40,7 +41,7 @@ test("a csoporton belül id szerinti sorrend, a lista a megjelenítés (fajcsopo
     const diff = new ExplorerModel().update(smallWorld(), null);
 
     assert.deepEqual(groupOf(diff, "red").entries.map((e) => e.id), [2, 3]);
-    assert.deepEqual(diff.entries.map((e) => e.id), [2, 3, 1, 4]);
+    assert.deepEqual(diff.entries.map((e) => e.id), [2, 3, 4, 1]);
     assert.deepEqual(Object.keys(diff.entries[0]).sort(), ["generation", "hue", "id", "speciesId"]);
 });
 
@@ -76,8 +77,8 @@ test("az összecsukott csoport sorait a billentyűs léptetés kihagyja", () => 
     const diff = model.update(world, null);
 
     assert.equal(groupOf(diff, "red").open, false);
-    assert.equal(model.neighbourId("first"), 1, "a piros csoport össze van csukva, az első a narancs");
-    assert.equal(model.neighbourId("last"), 4);
+    assert.equal(model.neighbourId("first"), 4, "a piros csoport össze van csukva, az első a kék");
+    assert.equal(model.neighbourId("last"), 1);
 
     model.toggleGroup("red");
     model.update(world, null);
@@ -89,7 +90,7 @@ test("a léptetés a megjelenítés sorrendjét követi, a csoportokon át", () 
     const model = new ExplorerModel();
     model.update(world, world.creatures[2]); // #3, a piros csoport utolsója
 
-    assert.equal(model.neighbourId(1), 1, "#3 után a narancs csoport #1-e jön");
+    assert.equal(model.neighbourId(1), 4, "#3 után a kék csoport #4-e jön");
     assert.equal(model.neighbourId(-1), 2);
 });
 
@@ -224,7 +225,7 @@ test("kereséskor csak a találatot tartalmazó csoportok látszanak, és nyitva
     assert.equal(groupOf(diff, "red").visible, true);
     assert.equal(groupOf(diff, "red").open, true, "kereséskor a releváns csoport kinyílik");
     assert.equal(groupOf(diff, "red").matches, 1);
-    assert.equal(groupOf(diff, "orange").visible, false);
+    assert.equal(groupOf(diff, "yellow").visible, false);
     assert.equal(groupOf(diff, "green").visible, false);
 });
 

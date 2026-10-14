@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createDefaultWorld } from "../scenario.js";
+import { WORLD_CONFIG } from "../config.js";
 import { birthCost } from "../reproduction.js";
 import { makeWorld, addCreature, addReadyParent, run, snapshot, WIDTH, HEIGHT } from "./helpers.js";
 
@@ -227,7 +228,7 @@ test("a korlátba csak az élők számítanak, a holttestek nem", () => {
 // --- kihalás, statisztika ---
 
 test("a populáció kihalhat, és nincs mesterséges utánpótlás", () => {
-    const world = createDefaultWorld(3, { initialFood: 0 });
+    const world = createDefaultWorld(3, { initialLandFood: 0, initialWaterFood: 0 });
 
     run(world, 12000);
     assert.equal(world.aliveCount, 0);
@@ -235,7 +236,7 @@ test("a populáció kihalhat, és nincs mesterséges utánpótlás", () => {
     run(world, 3000);
     assert.equal(world.aliveCount, 0);
     assert.equal(world.creatures.length, 0);
-    assert.equal(world.deaths, world.births + 5);
+    assert.equal(world.deaths, world.births + WORLD_CONFIG.initialCreatures);
 });
 
 test("a halál a bekövetkezésekor számít, okkal együtt", () => {

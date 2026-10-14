@@ -6,20 +6,23 @@ import { World } from "../world.js";
 import { randomGenes } from "../genetics.js";
 import { describeCreature } from "../inspector.js";
 import { WORLD_CONFIG } from "../config.js";
+import { Terrain } from "../terrain.js";
+import { HABITAT_PROFILES } from "../habitat.js";
 import { makeWorld, addReadyParent, run, snapshot } from "./helpers.js";
 
-test("az 5 faj: egyedi kulcs, név és a korábbi fix színek változatlanul", () => {
+test("a 6 faj: egyedi kulcs, név, szín és induló élőhely", () => {
     assert.deepEqual(
-        SPECIES.map((s) => [s.id, s.name, s.hue]),
+        SPECIES.map((s) => [s.id, s.name, s.hue, s.habitat]),
         [
-            ["red", "Piros", 0],
-            ["orange", "Narancs", 40],
-            ["green", "Zöld", 130],
-            ["blue", "Kék", 205],
-            ["purple", "Lila", 280],
+            ["red", "Piros", 0, "land"],
+            ["blue", "Kék", 205, "water"],
+            ["green", "Zöld", 130, "land"],
+            ["yellow", "Citromsárga", 55, "land"],
+            ["purple", "Lila", 280, "water"],
+            ["black", "Fekete (AI)", 0, "land"],
         ],
     );
-    assert.equal(new Set(SPECIES.map((s) => s.id)).size, 5);
+    assert.equal(new Set(SPECIES.map((s) => s.id)).size, 6);
     assert.ok(Object.isFrozen(SPECIES) && SPECIES.every(Object.isFrozen));
 });
 
@@ -32,8 +35,9 @@ test("ismeretlen fajkulcsra a faj nélküli csoport jön vissza", () => {
 test("az alapítók sorban kapják a fajokat, egyéni színük a faj színe", () => {
     const world = createDefaultWorld(1, { initialCreatures: 12 });
 
+    const repeating = SPECIES.filter((s) => !s.solitary);
     world.creatures.forEach((creature, i) => {
-        const species = SPECIES[i % 5];
+        const species = i < SPECIES.length ? SPECIES[i] : repeating[(i - SPECIES.length) % repeating.length];
         assert.equal(creature.speciesId, species.id, `#${creature.id}`);
         assert.equal(creature.genes.hue, species.hue);
     });
@@ -79,16 +83,24 @@ test("hosszú futásban minden lénynek van faja, és mindegyik a szülője faj�
 });
 
 test("a fajmező bevezetése nem változtat a futáson (azonos seed → azonos eredmény, mint faj nélkül)", () => {
-    const withSpecies = createDefaultWorld(21);
+    // a magányos (fekete AI) faj szándékosan másképp él (nem szaporodik), ezért nélküle
+    const ordinary = SPECIES.filter((s) => !s.solitary);
+    const withSpecies = createDefaultWorld(21, { species: ordinary.map((s) => s.id) });
 
-    // ugyanaz a kezdés, csak fajok nélkül (ahogy a fajmodell előtt volt)
-    const without = new World(WORLD_CONFIG.width, WORLD_CONFIG.height, 21);
+    // ugyanaz a (terepes) kezdés, csak a lények fajmezője nélkül
+    const terrain = Terrain.generate(WORLD_CONFIG.width, WORLD_CONFIG.height, 21, {
+        cellSize: WORLD_CONFIG.terrainCellSize,
+        waterFraction: WORLD_CONFIG.waterFraction,
+    });
+    const without = new World(WORLD_CONFIG.width, WORLD_CONFIG.height, 21, { terrain });
     for (let i = 0; i < WORLD_CONFIG.initialCreatures; i++) {
-        const genes = randomGenes(without.rng);
-        genes.hue = SPECIES[i % 5].hue;
+        const kind = ordinary[i % ordinary.length];
+        const genes = { ...randomGenes(without.rng), ...HABITAT_PROFILES[kind.habitat] };
+        genes.hue = kind.hue;
         without.spawnCreature(genes);
     }
-    without.spawnFood(WORLD_CONFIG.initialFood);
+    without.spawnFood(WORLD_CONFIG.initialLandFood, "land");
+    without.spawnFood(WORLD_CONFIG.initialWaterFood, "water");
 
     run(withSpecies, 15000);
     run(without, 15000);

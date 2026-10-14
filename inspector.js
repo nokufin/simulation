@@ -3,7 +3,8 @@
 
 import { WORLD_CONFIG } from "./config.js";
 import { reproductionStatus } from "./reproduction.js";
-import { getSpecies } from "./species.js";
+import { getSpecies, isAiSpecies } from "./species.js";
+import { TERRAIN_NAMES, LAND, SHALLOW, DEEP, canOccupyType, habitatClass, HABITAT_CLASS_NAMES } from "./habitat.js";
 
 const deg = (rad) => `${Math.round((rad * 180) / Math.PI)}°`;
 const pct = (value) => `${Math.round(value * 100)}%`;
@@ -15,8 +16,40 @@ const ACTIVITIES = {
     seeking: "kaját keres",
     eating: "eszik",
     exhausted: "kimerült, nem mozdul",
+    resting: "pihen (AI-döntés)",
+    exploring: "felfedez (AI-döntés)",
     dead: "—",
 };
+
+const AI_ACTIONS = {
+    seek: "kajához megy",
+    explore: "felfedez",
+    rest: "pihen",
+};
+
+// az AI-faj lényeinek döntései (ai-brain.js); a többi fajnál nincs ilyen szekció
+function describeAi(creature, world) {
+    const intent = creature.aiIntent;
+    const last = creature.aiLast;
+    const active = intent && intent.until >= world.tick && creature.alive;
+    return [
+        {
+            key: "intent",
+            label: "Most",
+            value: active
+                ? `${AI_ACTIONS[intent.action]}${intent.direction ? ` (${intent.direction})` : intent.foodId ? ` (#${intent.foodId})` : ""}, még ${ticks(intent.until - world.tick)}`
+                : "saját logika (nincs érvényes AI-döntés)",
+        },
+        {
+            key: "last",
+            label: "Utolsó döntés",
+            value: last ? `${AI_ACTIONS[last.action]}${last.detail ? ` · ${last.detail}` : ""} · ${world.tick - last.tick} tickkel ezelőtt` : "még nem kérdezett",
+        },
+        { key: "reason", label: "Indoklás", value: last?.reason || "—" },
+        { key: "latency", label: "Válaszidő", value: last ? `${(last.latencyMs / 1000).toFixed(1)} s` : "—" },
+        { key: "count", label: "Döntések száma", value: String(creature.aiDecisionCount ?? 0) },
+    ];
+}
 
 const CAUSES = {
     starvation: "éhezés",
@@ -47,6 +80,10 @@ const GENE_FORMATS = {
     offspringEnergy: ["Utód induló energiája", (v) => String(v)],
     reproductionStrategy: ["Szaporodási mód", (v) => STRATEGIES[v] ?? v],
     hue: ["Szín (árnyalat)", (v) => `${Math.round(v)}°`],
+    airBreathing: ["Levegőlégzés", (v) => v.toFixed(2)],
+    waterBreathing: ["Vízi légzés (kopoltyú)", (v) => v.toFixed(2)],
+    landMobility: ["Mozgékonyság szárazföldön", (v) => `×${v.toFixed(2)}`],
+    waterMobility: ["Mozgékonyság vízben", (v) => `×${v.toFixed(2)}`],
 };
 
 function describeGenes(genes) {
@@ -72,6 +109,12 @@ function colorText(hue, speciesHue) {
     return `${own} (fajszíntől ${rounded > 0 ? "+" : "−"}${Math.abs(rounded)}°)`;
 }
 
+// a gének szerinti élőhely-besorolás és a bejárható tereptípusok
+function habitatText(genes) {
+    const types = [LAND, SHALLOW, DEEP].filter((type) => canOccupyType(genes, type)).map((type) => TERRAIN_NAMES[type]);
+    return `${HABITAT_CLASS_NAMES[habitatClass(genes)]} (${types.length ? types.join(", ") : "sehol"})`;
+}
+
 function blockerText(blocker) {
     switch (blocker.code) {
         case "dead":
@@ -84,6 +127,8 @@ function blockerText(blocker) {
             return `kevés energia (még ${Math.ceil(blocker.needed)} kell)`;
         case "population":
             return `populációs korlát (${blocker.limit})`;
+        case "species":
+            return "a faja nem szaporodhat";
         default:
             return blocker.code;
     }
@@ -140,14 +185,16 @@ export function describeCreature(creature, world, status = creature.alive ? "ali
         { key: "hunger", label: "Éhség", value: pct(creature.hunger) },
         { key: "age", label: "Életkor", value: ticks(creature.age) },
         { key: "position", label: "Pozíció", value: `(${Math.round(creature.x)}, ${Math.round(creature.y)})` },
+        { key: "terrain", label: "Terep (itt)", value: TERRAIN_NAMES[world.terrain.typeAt(creature.x, creature.y)] },
+        { key: "habitat", label: "Élőhely (képesség)", value: habitatText(genes) },
         { key: "heading", label: "Irány", value: deg(((creature.heading % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) },
         { key: "speed", label: "Sebesség", value: `${creature.speed.toFixed(2)} px/tick` },
     );
 
     const identity = [
         { key: "id", label: "Azonosító", value: `#${creature.id}` },
-        { key: "species", label: "Faj", value: species.name, swatch: species.hue, swatchKind: "ring" },
-        { key: "color", label: "Egyedi szín", value: colorText(genes.hue, species.hue), swatch: genes.hue, swatchKind: "fill" },
+        { key: "species", label: "Faj", value: species.name, swatch: species.hue, swatchKind: "ring", swatchSpecies: creature.speciesId },
+        { key: "color", label: "Egyedi szín", value: colorText(genes.hue, species.hue), swatch: genes.hue, swatchKind: "fill", swatchSpecies: creature.speciesId },
         { key: "generation", label: "Generáció", value: String(creature.generation) },
         { key: "parent", label: "Szülő", value: creature.parentId === null ? "alapító (nincs szülő)" : `#${creature.parentId}` },
         { key: "birthTick", label: "Születési tick", value: String(creature.birthTick) },
@@ -184,6 +231,7 @@ export function describeCreature(creature, world, status = creature.alive ? "ali
         sections: [
             { key: "identity", title: "Azonosítás", rows: identity },
             { key: "life", title: "Életállapot", rows: life },
+            ...(isAiSpecies(creature.speciesId) ? [{ key: "ai", title: "AI (Ollama)", rows: describeAi(creature, world) }] : []),
             { key: "genes", title: "Gének", rows: describeGenes(genes) },
             { key: "reproduction", title: "Szaporodás", rows: reproduction },
         ],
@@ -198,10 +246,12 @@ export function populationSummary(world) {
     let size = 0;
     let speed = 0;
     let vision = 0;
+    const habitats = { land: 0, water: 0, amphibious: 0, none: 0 };
 
     for (const creature of world.creatures) {
         if (!creature.alive) continue;
         alive++;
+        habitats[habitatClass(creature.genes)]++;
         generationSum += creature.generation;
         generationMax = Math.max(generationMax, creature.generation);
         size += creature.genes.size;
@@ -224,6 +274,9 @@ export function populationSummary(world) {
         avgSize: avg(size),
         avgSpeed: avg(speed),
         avgVision: avg(vision),
+        landAlive: habitats.land,
+        waterAlive: habitats.water,
+        amphibiousAlive: habitats.amphibious,
     };
 }
 
@@ -248,6 +301,18 @@ const COMPARE_SECTIONS = [
         key: "genes",
         title: "Gének",
         rows: ["size", "maxSpeed", "visionRange", "fieldOfView", "turnRate", "metabolicRate", "maxAge"].map((k) => ["genes", k]),
+    },
+    {
+        key: "habitat",
+        title: "Élőhely",
+        rows: [
+            ["life", "terrain"],
+            ["life", "habitat"],
+            ["genes", "airBreathing"],
+            ["genes", "waterBreathing"],
+            ["genes", "landMobility"],
+            ["genes", "waterMobility"],
+        ],
     },
     {
         key: "reproduction",
@@ -288,6 +353,7 @@ export function describeComparison(creatures, world, statuses) {
             id: creature.id,
             number: i + 1,
             hue: creature.genes.hue,
+            speciesId: creature.speciesId,
             speciesHue: species.hue,
             speciesName: species.name,
             status: statuses[i],
@@ -317,7 +383,7 @@ export function describeComparison(creatures, world, statuses) {
             const cells = rowMaps.map((map) => {
                 const row = map.get(`${sectionKey}.${rowKey}`);
                 if (!row) return MISSING;
-                return { value: row.value, swatch: row.swatch, swatchKind: row.swatchKind, meter: row.meter };
+                return { value: row.value, swatch: row.swatch, swatchKind: row.swatchKind, swatchSpecies: row.swatchSpecies, meter: row.meter };
             });
             const label = rowMaps.map((map) => map.get(`${sectionKey}.${rowKey}`)).find(Boolean)?.label ?? rowKey;
             const differs = new Set(cells.map((cell) => cell.value)).size > 1;

@@ -1,10 +1,11 @@
 // Belépési pont: világ létrehozása, fix időlépéses fő ciklus, felhasználói vezérlés.
 
 import { canvas, ctx } from "./canvas.js";
-import { WORLD_CONFIG } from "./config.js";
+import { WORLD_CONFIG, AI_CONFIG } from "./config.js";
 import { createDefaultWorld } from "./scenario.js";
 import { randomSeed } from "./rng.js";
-import { drawWorld } from "./render.js";
+import { drawWorld, paintTerrain } from "./render.js";
+import { AiBrain } from "./ai-brain.js";
 import {
     Selection,
     pickCreatureAt,
@@ -25,15 +26,24 @@ import {
     renderPopulation,
     initSpeedControl,
     initSimControls,
+    initAiControl,
+    renderAiStatus,
 } from "./ui.js";
 
 // fejlesztői réteg: rács + látókúp + mozgásirány + célpont
 const DEBUG = true;
 
 // seed: ?seed=12345 az URL-ben visszajátssza ugyanazt a futást, enélkül véletlen
-const seedParam = new URLSearchParams(location.search).get("seed");
+const params = new URLSearchParams(location.search);
+const seedParam = params.get("seed");
 const seed = seedParam !== null && /^\d+$/.test(seedParam) ? Number(seedParam) : randomSeed();
-console.log(`seed: ${seed}  (újrajátszás: ?seed=${seed})`);
+
+// a fekete (AI) faj agya: helyi Ollama-modell. ?ai=0 kikapcsolja (ekkor a futás seed alapján
+// pontosan visszajátszható; bekapcsolt AI mellett a modell válaszai miatt nem az)
+const brain = new AiBrain({ ...AI_CONFIG, enabled: params.get("ai") === null ? AI_CONFIG.enabled : params.get("ai") !== "0" });
+console.log(
+    `seed: ${seed}  (újrajátszás: ?seed=${seed}${brain.enabled ? "&ai=0 – bekapcsolt AI mellett a futás nem visszajátszható" : ""})`,
+);
 
 const world = createDefaultWorld(seed);
 
@@ -42,6 +52,12 @@ canvas.width = WORLD_CONFIG.width;
 canvas.height = WORLD_CONFIG.height;
 document.documentElement.style.setProperty("--world-w", WORLD_CONFIG.width);
 document.documentElement.style.setProperty("--world-h", WORLD_CONFIG.height);
+
+// a terep nem változik: egyszer kirajzoljuk egy háttérképre, a képkockák csak ezt teszik ki
+const terrainImage = document.createElement("canvas");
+terrainImage.width = world.width;
+terrainImage.height = world.height;
+paintTerrain(terrainImage.getContext("2d"), world.terrain);
 
 // --- fix időlépés ---
 // a szimuláció mindig ticksPerSecond lépést számol másodpercenként, függetlenül attól,
@@ -70,6 +86,16 @@ initSimControls({
         render(true); // léptetéskor a panelek is azonnal frissüljenek
     },
 });
+
+initAiControl(() => {
+    brain.setEnabled(!brain.enabled);
+    // kikapcsoláskor a függő döntések sem érvényesek: mindenki a beépített logikával él tovább
+    if (!brain.enabled) {
+        for (const creature of world.creatures) creature.aiIntent = null;
+    }
+    render(true);
+    return brain.enabled;
+}, brain.enabled);
 
 // kattintással kijelölhető egy lény (a canvas CSS-ben átméretezett, ezért a skálázás).
 // Ctrl (macOS-en Cmd) + kattintás: hozzáadás / eltávolítás, legfeljebb 5 lényig.
@@ -186,6 +212,7 @@ initExplorer(
 window.sim = {
     world,
     selection,
+    brain, // sim.brain.log: az utolsó AI-döntések
     // a kijelölt lények, kiválasztási sorrendben
     get selected() {
         return selection.creatures;
@@ -202,7 +229,7 @@ function render(forcePanels = false) {
     const rings = selection.creatures.map((creature) =>
         selection.statusOf(creature, world) === "removed" ? null : creature,
     );
-    drawWorld(ctx, world, { debug: DEBUG, selected: rings });
+    drawWorld(ctx, world, { debug: DEBUG, selected: rings, background: terrainImage });
 
     const now = performance.now();
     if (forcePanels || now - lastPanelUpdate >= PANEL_INTERVAL_MS) {
@@ -215,6 +242,7 @@ function render(forcePanels = false) {
         renderSimInfo(world);
         renderPopulation(populationSummary(world), world.history);
         renderFoodInfo(world.foods);
+        renderAiStatus(brain);
     }
 }
 
@@ -249,6 +277,9 @@ function frame(now) {
         // szünet alatt ne gyűljön az idő, hogy folytatáskor ne ugorjon
         accumulator = 0;
     }
+
+    // az AI legfeljebb egy kérést indít, és nem vár a válaszra (a lépéseket nem lassítja)
+    brain.update(world);
 
     render();
     requestAnimationFrame(frame);

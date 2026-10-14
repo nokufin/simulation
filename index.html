@@ -47,6 +47,14 @@
                         <button type="button" data-speed="4">4&times;</button>
                         <button type="button" data-speed="10">10&times;</button>
                     </div>
+
+                    <!-- a fekete (AI) faj: helyi Ollama-modell; ki/be kapcsolható -->
+                    <div class="ai-bar">
+                        <div class="btn-group">
+                            <button type="button" id="aiBtn" class="ai-btn" aria-pressed="false" title="A fekete faj döntéseit a helyi nyelvi modell hozza">AI</button>
+                        </div>
+                        <span id="aiStatus" class="ai-status" role="status" aria-live="polite"></span>
+                    </div>
                 </div>
 
                 <dl id="simInfo" class="sim-info"></dl>
